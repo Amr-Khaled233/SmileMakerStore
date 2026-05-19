@@ -4,16 +4,6 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY } from "@/data/products";
 
 export const Route = createFileRoute("/products/h2o-water-flosser")({
-  head: () => ({
-    meta: [
-      { title: "H2O Water Flosser — Smile Maker" },
-      { name: "description", content: "H2O Water Flosser C102 — pressurized hydro-pulse cleaning with 4 modes and 5 nozzles." },
-      { property: "og:title", content: "H2O Water Flosser by Smile Maker" },
-      { property: "og:description", content: "Pressurized hydro-pulse cleaning that reaches where brushing can't." },
-      { property: "og:image", content: H2O_GALLERY[0] },
-      { name: "twitter:image", content: H2O_GALLERY[0] },
-    ],
-  }),
   component: () => (
     <Layout>
       <ProductDetail

@@ -6,12 +6,6 @@ import clinic from "@/assets/about-clinic.jpg";
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/about")({
-  head: () => ({
-    meta: [
-      { title: "About Smile Maker" },
-      { name: "description", content: "Luxury oral care technology built for confidence." },
-    ],
-  }),
   component: AboutPage,
 });
 

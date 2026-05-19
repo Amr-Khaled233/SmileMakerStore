@@ -8,16 +8,6 @@ import ortho from "@/assets/ortho-kit-2.jpeg";
 import { useT, type L } from "@/lib/i18n";
 import { formatEGP } from "@/data/products";
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Smile Maker — Advanced Beauty Devices for a Brighter Smile" },
-      { name: "description", content: "Luxury cosmetic dental devices and oral care technology." },
-      { property: "og:title", content: "Smile Maker — Beauty Devices for a Brighter Smile" },
-      { property: "og:description", content: "Luxury cosmetic dental devices and oral care technology." },
-      { property: "og:image", content: hero },
-      { name: "twitter:image", content: hero },
-    ],
-  }),
   component: HomePage,
 });
 

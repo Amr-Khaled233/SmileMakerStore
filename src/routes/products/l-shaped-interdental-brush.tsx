@@ -5,13 +5,6 @@ import { LSHAPED_GALLERY, ORTHO_KIT_GALLERY, H2O_GALLERY } from "@/data/products
 import wax from "@/assets/ortho-wax-main.jpeg";
 
 export const Route = createFileRoute("/products/l-shaped-interdental-brush")({
-  head: () => ({
-    meta: [
-      { title: "L-Shaped Interdental Brush — Smile Maker" },
-      { name: "description", content: "L-shaped interdental brushes for braces, implants & tight gaps." },
-      { property: "og:image", content: LSHAPED_GALLERY[0] },
-    ],
-  }),
   component: () => (
     <Layout>
       <ProductDetail

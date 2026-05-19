@@ -4,13 +4,6 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { ORTHO_KIT_GALLERY, H2O_GALLERY, LSHAPED_GALLERY } from "@/data/products";
 
 export const Route = createFileRoute("/products/ortho-oral-kit")({
-  head: () => ({
-    meta: [
-      { title: "Ortho Kit — Smile Maker" },
-      { name: "description", content: "All-in-one 8-piece daily kit for braces & oral hygiene." },
-      { property: "og:image", content: ORTHO_KIT_GALLERY[0] },
-    ],
-  }),
   component: () => (
     <Layout>
       <ProductDetail

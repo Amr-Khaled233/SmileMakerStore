@@ -6,14 +6,6 @@ import { useT } from "@/lib/i18n";
 import { whatsappLink } from "@/data/products";
 
 export const Route = createFileRoute("/contact")({
-  head: () => ({
-    meta: [
-      { title: "Contact Smile Maker — We'd Love to Hear From You" },
-      { name: "description", content: "Reach the Smile Maker team for product help, orders, partnerships, or just to say hello." },
-      { property: "og:title", content: "Contact Smile Maker" },
-      { property: "og:description", content: "Get in touch with our beauty-tech team." },
-    ],
-  }),
   component: ContactPage,
 });
 

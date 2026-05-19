@@ -4,13 +4,6 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { ELECTRIC_BRUSH_GALLERY, ORTHO_KIT_GALLERY, H2O_GALLERY } from "@/data/products";
 
 export const Route = createFileRoute("/products/electrical-dental-brush")({
-  head: () => ({
-    meta: [
-      { title: "Electric Toothbrush — Smile Maker" },
-      { name: "description", content: "Sonic high-frequency electric toothbrush with multiple modes." },
-      { property: "og:image", content: ELECTRIC_BRUSH_GALLERY[0] },
-    ],
-  }),
   component: () => (
     <Layout>
       <ProductDetail

@@ -7,12 +7,6 @@ import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineT
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/order")({
-  head: () => ({
-    meta: [
-      { title: "Place an Order — Smile Maker" },
-      { name: "description", content: "Build your Smile Maker order." },
-    ],
-  }),
   component: OrderPage,
 });
 

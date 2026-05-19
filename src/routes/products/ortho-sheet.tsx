@@ -4,13 +4,6 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { WAX_GALLERY, H2O_GALLERY, ORTHO_KIT_GALLERY } from "@/data/products";
 
 export const Route = createFileRoute("/products/ortho-sheet")({
-  head: () => ({
-    meta: [
-      { title: "Orthodontic Wax — Smile Maker" },
-      { name: "description", content: "Hypoallergenic orthodontic wax — 50 EGP each, 5 for 200 EGP." },
-      { property: "og:image", content: WAX_GALLERY[0] },
-    ],
-  }),
   component: () => (
     <Layout>
       <ProductDetail

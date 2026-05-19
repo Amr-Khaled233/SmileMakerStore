@@ -5,12 +5,6 @@ import { PRODUCTS, BUNDLES, getProduct, formatEGP, effectivePrice } from "@/data
 import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/products/")({
-  head: () => ({
-    meta: [
-      { title: "Products — Smile Maker" },
-      { name: "description", content: "Explore the full Smile Maker collection." },
-    ],
-  }),
   component: ProductsPage,
 });
 
