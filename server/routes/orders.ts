@@ -6,7 +6,7 @@ import type { Order } from "../types.js";
 const router = Router();
 
 function deductInventory(
-  db: ReturnType<typeof readDb>,
+  db: Awaited<ReturnType<typeof readDb>>,
   items: Order["items"],
   multiplier: 1 | -1 = 1 // 1 = deduct, -1 = restore
 ) {
@@ -24,33 +24,41 @@ function deductInventory(
 }
 
 // Public — create order from checkout
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const body = req.body as Omit<Order, "createdAt" | "status">;
   if (!body.id || !body.name || !body.phone) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
-  const db = readDb();
+  const db = await readDb();
   const order: Order = { ...body, createdAt: Date.now(), status: "pending" };
   db.orders.unshift(order);
 
   // Auto-deduct inventory for each item ordered
   deductInventory(db, order.items);
 
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true, id: order.id });
 });
 
 // Protected — list all orders
-router.get("/", requireAuth, (_req, res) => {
-  const db = readDb();
+router.get("/", requireAuth, async (_req, res) => {
+  const db = await readDb();
   res.json(db.orders);
 });
 
-// Protected — update order status, total, and/or notes
-router.patch("/:id", requireAuth, (req, res) => {
-  const body = req.body as { status?: string; total?: number; notes?: string };
-  const db = readDb();
+// Protected — update order status, total, notes, and/or items
+router.patch("/:id", requireAuth, async (req, res) => {
+  const body = req.body as {
+    status?: string;
+    total?: number;
+    notes?: string;
+    items?: Order["items"];
+    subtotal?: number;
+    bundleDiscount?: number;
+    promoDiscount?: number;
+  };
+  const db = await readDb();
   const order = db.orders.find((o) => o.id === req.params.id);
   if (!order) {
     res.status(404).json({ error: "Order not found" });
@@ -69,6 +77,17 @@ router.patch("/:id", requireAuth, (req, res) => {
     changed = true;
   }
 
+  if (body.items !== undefined && Array.isArray(body.items)) {
+    // Restore old inventory, apply new
+    deductInventory(db, order.items, -1);
+    order.items = body.items;
+    deductInventory(db, order.items, 1);
+    if (body.subtotal !== undefined) order.subtotal = body.subtotal;
+    if (body.bundleDiscount !== undefined) order.bundleDiscount = body.bundleDiscount;
+    if (body.promoDiscount !== undefined) order.promoDiscount = body.promoDiscount;
+    changed = true;
+  }
+
   if (body.total !== undefined) {
     const t = Number(body.total);
     if (!isNaN(t) && t >= 0) { order.total = t; changed = true; }
@@ -84,13 +103,13 @@ router.patch("/:id", requireAuth, (req, res) => {
     return;
   }
 
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 
 // Protected — delete order and restore inventory
-router.delete("/:id", requireAuth, (req, res) => {
-  const db = readDb();
+router.delete("/:id", requireAuth, async (req, res) => {
+  const db = await readDb();
   const idx = db.orders.findIndex((o) => o.id === req.params.id);
   if (idx === -1) {
     res.status(404).json({ error: "Order not found" });
@@ -101,7 +120,7 @@ router.delete("/:id", requireAuth, (req, res) => {
   // Restore inventory quantities
   deductInventory(db, order.items, -1);
 
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 

@@ -25,8 +25,8 @@ type ColorQtyMap = Partial<Record<ProductSlug, Record<string, number>>>;
 
 function OrderPage() {
   const { t, tl, lang } = useT();
-  const [qty, setQty] = useState<Quantities>({});
-  const [colorQty, setColorQty] = useState<ColorQtyMap>({});
+  const [standaloneQty, setStandaloneQty] = useState<Quantities>({});
+  const [standaloneColorQty, setStandaloneColorQty] = useState<ColorQtyMap>({});
   const [zoneId, setZoneId] = useState(SHIPPING_ZONES[0].id);
   const [promo, setPromo] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number } | null>(null);
@@ -38,6 +38,8 @@ function OrderPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [freeShippingActive, setFreeShippingActive] = useState(false);
   const [selectedBundleIds, setSelectedBundleIds] = useState<string[]>([]);
+  // bundleId → slug → colorId  (required for color products inside a bundle)
+  const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => { api.getInventoryStatus().then(setInventoryStatus).catch(() => {}); }, []);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
@@ -77,36 +79,15 @@ function OrderPage() {
     city: string;
   }>(null);
 
-  const inc = (slug: ProductSlug) => setQty((q) => ({ ...q, [slug]: (q[slug] ?? 0) + 1 }));
-  const dec = (slug: ProductSlug) => setQty((q) => ({ ...q, [slug]: Math.max(0, (q[slug] ?? 0) - 1) }));
-  const set = (slug: ProductSlug, v: number) => setQty((q) => ({ ...q, [slug]: Math.max(0, Math.min(99, v || 0)) }));
+  const inc = (slug: ProductSlug) => setStandaloneQty((q) => ({ ...q, [slug]: (q[slug] ?? 0) + 1 }));
+  const dec = (slug: ProductSlug) => setStandaloneQty((q) => ({ ...q, [slug]: Math.max(0, (q[slug] ?? 0) - 1) }));
+  const set = (slug: ProductSlug, v: number) => setStandaloneQty((q) => ({ ...q, [slug]: Math.max(0, Math.min(99, v || 0)) }));
   const incColor = (slug: ProductSlug, colorId: string) =>
-    setColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: (m[slug]?.[colorId] ?? 0) + 1 } }));
+    setStandaloneColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: (m[slug]?.[colorId] ?? 0) + 1 } }));
   const decColor = (slug: ProductSlug, colorId: string) =>
-    setColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: Math.max(0, (m[slug]?.[colorId] ?? 0) - 1) } }));
-  const totalColorQty = (slug: ProductSlug) =>
-    Object.values(colorQty[slug] ?? {}).reduce((s, q) => s + q, 0);
-
-  const lines = useMemo(() => {
-    const result: { slug: string; colorId?: string; title: string; qty: number; lineTotal: number }[] = [];
-    for (const p of products) {
-      if (p.colors?.length) {
-        for (const [colorId, q] of Object.entries(colorQty[p.slug] ?? {})) {
-          if (q > 0) {
-            const color = p.colors.find((c) => c.id === colorId);
-            result.push({ slug: p.slug, colorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: q, lineTotal: computeLineTotal(p, q) });
-          }
-        }
-      } else {
-        const q = qty[p.slug] ?? 0;
-        if (q > 0) result.push({ slug: p.slug, title: p.title, qty: q, lineTotal: computeLineTotal(p, q) });
-      }
-    }
-    return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qty, colorQty, tl, products]);
-
-  const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+    setStandaloneColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: Math.max(0, (m[slug]?.[colorId] ?? 0) - 1) } }));
+  const standaloneColorTotal = (slug: ProductSlug) =>
+    Object.values(standaloneColorQty[slug] ?? {}).reduce((s, q) => s + q, 0);
 
   const dynamicBundles = useMemo(
     () =>
@@ -123,19 +104,59 @@ function OrderPage() {
         : PROMO_CODES.map((p) => ({ code: p.code, pct: p.pct })),
     [pricing],
   );
-  const slugQty = (s: string) => {
-    const p = products.find((x) => x.slug === s);
-    return p?.colors?.length ? totalColorQty(p.slug) : (qty[s as ProductSlug] ?? 0);
-  };
+
+  // Matched bundles: explicitly selected + none of the items are OOS
+  // No qty requirement — bundle items contribute to qty themselves
   const matchedBundles = useMemo(
     () => dynamicBundles.filter(
       (b) =>
         selectedBundleIds.includes(b.id) &&
-        b.items.every((s) => slugQty(s) >= 1 && !products.find((p) => p.slug === s)?.outOfStock),
+        b.items.every((s) => !products.find((p) => p.slug === s)?.outOfStock),
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [qty, colorQty, selectedBundleIds, products, dynamicBundles],
+    [selectedBundleIds, products, dynamicBundles],
   );
+
+  // Lines = bundle item contributions (1 per product per matched bundle, no color)
+  //       + standalone additions, merged by key so same product stacks correctly
+  const lines = useMemo(() => {
+    type Line = { slug: string; colorId?: string; title: string; qty: number; lineTotal: number };
+    const acc = new Map<string, Line>();
+    const add = (key: string, entry: Line) => {
+      const ex = acc.get(key);
+      acc.set(key, ex ? { ...ex, qty: ex.qty + entry.qty, lineTotal: ex.lineTotal + entry.lineTotal } : entry);
+    };
+
+    // Bundle items — use selected color if product has colors
+    for (const b of matchedBundles) {
+      for (const slug of b.items) {
+        const p = products.find((x) => x.slug === slug)!;
+        const selectedColorId = p.colors?.length ? bundleColorSelections[b.id]?.[slug] : undefined;
+        const color = selectedColorId ? p.colors?.find((c) => c.id === selectedColorId) : undefined;
+        const key = selectedColorId ? `${slug}__${selectedColorId}` : slug;
+        add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: 1, lineTotal: effectivePrice(p) });
+      }
+    }
+
+    // Standalone items
+    for (const p of products) {
+      if (p.colors?.length) {
+        for (const [colorId, q] of Object.entries(standaloneColorQty[p.slug] ?? {})) {
+          if (q > 0) {
+            const color = p.colors.find((c) => c.id === colorId);
+            add(`${p.slug}__${colorId}`, { slug: p.slug, colorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: q, lineTotal: computeLineTotal(p, q) });
+          }
+        }
+      } else {
+        const q = standaloneQty[p.slug] ?? 0;
+        if (q > 0) add(p.slug, { slug: p.slug, title: p.title, qty: q, lineTotal: computeLineTotal(p, q) });
+      }
+    }
+
+    return Array.from(acc.values()).filter((l) => l.qty > 0);
+  }, [matchedBundles, bundleColorSelections, standaloneQty, standaloneColorQty, tl, products]);
+
+  const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+
   const bundleDiscount = useMemo(() => {
     return matchedBundles.reduce((sum, b) => {
       const itemsSum = b.items
@@ -177,6 +198,16 @@ function OrderPage() {
     if (lines.length === 0) {
       setErrors({ items: t("order.emptyError") });
       return;
+    }
+    // Validate bundle color selections
+    for (const b of matchedBundles) {
+      for (const slug of b.items) {
+        const p = products.find((x) => x.slug === slug);
+        if (p?.colors?.length && !bundleColorSelections[b.id]?.[slug]) {
+          setErrors({ items: lang === "ar" ? `اختر لون لكل منتج في الباقة "${tl(b.title)}"` : `Select a color for all products in bundle "${tl(b.title)}"` });
+          return;
+        }
+      }
     }
     const result = orderSchema.safeParse(form);
     if (!result.success) {
@@ -237,9 +268,10 @@ function OrderPage() {
 
   const reset = () => {
     setConfirmed(null);
-    setQty({});
-    setColorQty({});
+    setStandaloneQty({});
+    setStandaloneColorQty({});
     setSelectedBundleIds([]);
+    setBundleColorSelections({});
     setForm({ name: "", phone: "", email: "", address: "", city: "", notes: "" });
     setAppliedPromo(null);
     setPromo("");
@@ -359,81 +391,111 @@ function OrderPage() {
                   const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
                   const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
                   const bundleOos = b.items.some((s) => products.find((p) => p.slug === s)?.outOfStock === true);
-                  const isActive = !bundleOos && selectedBundleIds.includes(b.id) && b.items.every((s) => slugQty(s) >= 1);
+                  const isActive = !bundleOos && selectedBundleIds.includes(b.id);
                   const toggleBundle = () => {
                     if (bundleOos) return;
-                    if (isActive) {
+                    if (selectedBundleIds.includes(b.id)) {
                       setSelectedBundleIds((ids) => ids.filter((id) => id !== b.id));
-                      setQty((q) => { const next = { ...q }; b.items.forEach((s) => { next[s as ProductSlug] = 0; }); return next; });
-                      setColorQty((m) => { const next = { ...m }; b.items.forEach((s) => { next[s as ProductSlug] = {}; }); return next; });
+                      setBundleColorSelections((prev) => { const next = { ...prev }; delete next[b.id]; return next; });
                     } else {
-                      setSelectedBundleIds((ids) => ids.includes(b.id) ? ids : [...ids, b.id]);
-                      setQty((q) => {
-                        const next = { ...q };
-                        b.items.forEach((s) => {
-                          const p = products.find((x) => x.slug === s);
-                          if (!p?.colors?.length && (next[s as ProductSlug] ?? 0) < 1) next[s as ProductSlug] = 1;
-                        });
-                        return next;
-                      });
-                      setColorQty((m) => {
-                        const next = { ...m };
-                        b.items.forEach((s) => {
-                          const p = products.find((x) => x.slug === s);
-                          if (p?.colors?.length) {
-                            const alreadyHas = Object.values(next[s as ProductSlug] ?? {}).reduce((a, c) => a + c, 0) >= 1;
-                            if (!alreadyHas) {
-                              const first = p.colors.find((c) => !p.outOfStockColors?.includes(c.id));
-                              if (first) next[s as ProductSlug] = { ...(next[s as ProductSlug] ?? {}), [first.id]: 1 };
-                            }
-                          }
-                        });
-                        return next;
-                      });
+                      setSelectedBundleIds((ids) => [...ids, b.id]);
                     }
                   };
+                  const colorProductsInBundle = items.filter((i) => i.colors?.length);
+                  const allColorsSelected = colorProductsInBundle.every((i) => !!bundleColorSelections[b.id]?.[i.slug]);
                   return (
-                    <button
+                    <div
                       key={b.id}
-                      type="button"
-                      onClick={toggleBundle}
-                      disabled={bundleOos}
-                      className={`text-start rounded-2xl border-2 p-4 transition-all ${bundleOos ? "opacity-55 cursor-not-allowed border-border bg-white" : isActive ? "border-deep-blue bg-soft hover:shadow-md" : "border-border bg-white hover:border-turquoise hover:shadow-md"}`}
+                      className={`rounded-2xl border-2 p-4 transition-all ${bundleOos ? "opacity-55 border-border bg-white" : isActive ? "border-deep-blue bg-soft" : "border-border bg-white"}`}
                     >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-display text-base leading-snug">{tl(b.title)}</p>
-                        {bundleOos && (
-                          <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
-                            {lang === "ar" ? "نفد المخزون" : "Out of stock"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        {items.map((i) => (
-                          <div key={i.slug} className={`h-12 w-12 rounded-xl bg-soft border border-border flex items-center justify-center overflow-hidden ${i.outOfStock ? "grayscale" : ""}`}>
-                            <img src={i.image} alt={i.title} loading="lazy" width={96} height={96} className="w-3/4 h-3/4 object-contain" />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <p className="text-xs text-muted-foreground">
-                            <span className="line-through">{formatEGP(total, lang)}</span>
-                            {savingsPct > 0 && !bundleOos && (
-                              <span className="ms-1.5 text-xs font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5">−{savingsPct}%</span>
-                            )}
-                          </p>
-                          <span className={`price-tag text-lg ${bundleOos ? "text-muted-foreground" : "text-gradient"}`}>{formatEGP(discounted, lang)}</span>
+                      {/* Clickable toggle header */}
+                      <button
+                        type="button"
+                        onClick={toggleBundle}
+                        disabled={bundleOos}
+                        className="w-full text-start disabled:cursor-not-allowed"
+                      >
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-display text-base leading-snug">{tl(b.title)}</p>
+                          {bundleOos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
                         </div>
-                        {bundleOos ? null : isActive ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
-                            <X className="h-3.5 w-3.5" /> {lang === "ar" ? "إزالة" : "Remove"}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium text-deep-blue">{lang === "ar" ? "+ أضف" : "+ Add"}</span>
-                        )}
-                      </div>
-                    </button>
+                        <div className="mt-3 flex gap-2">
+                          {items.map((i) => (
+                            <div key={i.slug} className={`h-12 w-12 rounded-xl bg-soft border border-border flex items-center justify-center overflow-hidden ${i.outOfStock ? "grayscale" : ""}`}>
+                              <img src={i.image} alt={i.title} loading="lazy" width={96} height={96} className="w-3/4 h-3/4 object-contain" />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <p className="text-xs text-muted-foreground">
+                              <span className="line-through">{formatEGP(total, lang)}</span>
+                              {savingsPct > 0 && !bundleOos && <span className="ms-1.5 text-xs font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5">−{savingsPct}%</span>}
+                            </p>
+                            <span className={`price-tag text-lg ${bundleOos ? "text-muted-foreground" : "text-gradient"}`}>{formatEGP(discounted, lang)}</span>
+                          </div>
+                          {bundleOos ? null : isActive ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><X className="h-3.5 w-3.5" /> {lang === "ar" ? "إزالة" : "Remove"}</span>
+                          ) : (
+                            <span className="text-xs font-medium text-deep-blue">{lang === "ar" ? "+ أضف" : "+ Add"}</span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Color selectors — shown when bundle is active and has color products */}
+                      {isActive && colorProductsInBundle.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
+                          <p className="text-xs font-medium text-ink flex items-center gap-1.5">
+                            <Check className="h-3.5 w-3.5 text-deep-blue" />
+                            {lang === "ar" ? "اختر لون كل منتج:" : "Choose a color for each product:"}
+                          </p>
+                          {colorProductsInBundle.map((cp) => {
+                            const selectedColorId = bundleColorSelections[b.id]?.[cp.slug];
+                            const selectedColor = cp.colors?.find((c) => c.id === selectedColorId);
+                            return (
+                              <div key={cp.slug}>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <p className="text-xs text-muted-foreground" dir="ltr">{cp.title}</p>
+                                  {selectedColor && <span className="text-xs font-medium text-ink">— {tl(selectedColor.label)}</span>}
+                                  {!selectedColorId && <span className="text-[10px] text-destructive font-medium">{lang === "ar" ? "مطلوب" : "Required"}</span>}
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                  {cp.colors!.map((c) => {
+                                    const colorOos = cp.outOfStockColors?.includes(c.id) === true;
+                                    const isSelected = selectedColorId === c.id;
+                                    return (
+                                      <button
+                                        key={c.id}
+                                        type="button"
+                                        disabled={colorOos}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setBundleColorSelections((prev) => ({
+                                            ...prev,
+                                            [b.id]: { ...(prev[b.id] ?? {}), [cp.slug]: c.id },
+                                          }));
+                                        }}
+                                        title={tl(c.label)}
+                                        className={`relative h-7 w-7 rounded-full border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isSelected ? "border-deep-blue scale-110 shadow-sm" : "border-transparent hover:border-deep-blue/40"}`}
+                                        style={{ backgroundColor: c.hex }}
+                                      >
+                                        {colorOos && <span className="absolute inset-0 flex items-center justify-center"><span className="absolute w-[130%] h-px bg-white/80 rotate-45 origin-center" /></span>}
+                                        {isSelected && <span className="absolute inset-0 flex items-center justify-center"><Check className="h-3.5 w-3.5 text-white drop-shadow" /></span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {!allColorsSelected && (
+                            <p className="text-[11px] text-amber-600 bg-amber-50 rounded-lg px-3 py-1.5">
+                              {lang === "ar" ? "لازم تختار لون لكل منتج عشان تكمل الأوردر" : "You must select a color for each product to complete the order"}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -450,7 +512,9 @@ function OrderPage() {
               <div className="mt-5 divide-y divide-border">
                 {products.map((p) => {
                   const hasColors = (p.colors?.length ?? 0) > 0;
-                  const q = hasColors ? totalColorQty(p.slug) : (qty[p.slug] ?? 0);
+                  const bundleContribs = matchedBundles.filter((b) => b.items.includes(p.slug));
+                  const standaloneQ = hasColors ? standaloneColorTotal(p.slug) : (standaloneQty[p.slug] ?? 0);
+                  const totalQ = bundleContribs.length + standaloneQ;
                   const price = effectivePrice(p);
                   const onSale = p.salePrice != null;
                   const oos = p.outOfStock === true;
@@ -464,45 +528,54 @@ function OrderPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={`font-medium text-ink leading-snug ${oos ? "line-through decoration-muted-foreground/50" : ""}`} dir="ltr">{p.title}</p>
-                            {oos && (
-                              <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
-                                {lang === "ar" ? "نفد المخزون" : "Out of stock"}
-                              </span>
-                            )}
+                            {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                            {totalQ > 0 && !oos && <span className="text-[10px] font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? `× ${totalQ} في الكارت` : `× ${totalQ} in cart`}</span>}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{tl(p.tagline)}</p>
-                          <div className="mt-1">
+                          <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <span className="text-sm price-tag text-gradient">{formatEGP(price, lang)}</span>
-                            {onSale && <span className="ms-2 text-[11px] text-muted-foreground line-through font-sans">{formatEGP(p.price, lang)}</span>}
-                            {p.bulkDeal && <p className="text-[10px] text-deep-blue font-sans mt-0.5">{tl(p.bulkDeal.label)}</p>}
+                            {onSale && <span className="text-[11px] text-muted-foreground line-through font-sans">{formatEGP(p.price, lang)}</span>}
                           </div>
+                          {/* Bundle contribution badges */}
+                          {bundleContribs.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {bundleContribs.map((b) => (
+                                <span key={b.id} className="inline-flex items-center gap-1 text-[10px] font-medium text-deep-blue bg-deep-blue/8 border border-deep-blue/20 rounded-full px-2 py-0.5">
+                                  <Sparkles className="h-2.5 w-2.5" />{tl(b.title)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {/* Qty stepper — only for non-color products */}
-                        {!hasColors && (
-                          <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-1 shrink-0">
-                            <button type="button" onClick={() => dec(p.slug)} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors" disabled={q === 0 || oos}>
-                              <Minus className="h-4 w-4" />
-                            </button>
-                            <input
-                              inputMode="numeric"
-                              value={q}
-                              readOnly={oos}
-                              onChange={(e) => !oos && set(p.slug, parseInt(e.target.value.replace(/\D/g, ""), 10))}
-                              className="w-10 text-center bg-transparent text-sm font-medium focus:outline-none"
-                            />
-                            <button type="button" onClick={() => inc(p.slug)} disabled={oos} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                              <Plus className="h-4 w-4" />
-                            </button>
+                        {/* Standalone qty stepper — non-color products */}
+                        {!hasColors && !oos && (
+                          <div className="flex flex-col items-center gap-1 shrink-0">
+                            {bundleContribs.length > 0 && <span className="text-[10px] text-muted-foreground">{lang === "ar" ? "إضافي" : "Extra"}</span>}
+                            <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-1">
+                              <button type="button" onClick={() => dec(p.slug)} disabled={standaloneQ === 0} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <input inputMode="numeric" value={standaloneQ} onChange={(e) => set(p.slug, parseInt(e.target.value.replace(/\D/g, ""), 10))} className="w-10 text-center bg-transparent text-sm font-medium focus:outline-none" />
+                              <button type="button" onClick={() => inc(p.slug)} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Per-color steppers */}
+                      {/* Per-color standalone steppers */}
                       {hasColors && !oos && (
                         <div className="mt-3 ms-[76px] space-y-2">
+                          {bundleContribs.length > 0 && (
+                            <p className="text-xs text-deep-blue font-medium">
+                              {lang === "ar" ? `من الباقات: ${bundleContribs.length} قطعة بدون لون محدد` : `From bundles: ${bundleContribs.length} unit(s) — color TBD`}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">{bundleContribs.length > 0 ? (lang === "ar" ? "إضافي حسب اللون:" : "Extra by color:") : (lang === "ar" ? "اختر اللون والكمية:" : "Choose color & qty:")}</p>
                           {p.colors!.map((c) => {
                             const colorOos = p.outOfStockColors?.includes(c.id) === true;
-                            const cq = colorQty[p.slug]?.[c.id] ?? 0;
+                            const cq = standaloneColorQty[p.slug]?.[c.id] ?? 0;
                             return (
                               <div key={c.id} className={`flex items-center justify-between gap-3 ${colorOos ? "opacity-45" : ""}`}>
                                 <div className="flex items-center gap-2 min-w-0">
@@ -524,10 +597,10 @@ function OrderPage() {
                               </div>
                             );
                           })}
-                          {q > 0 && (
+                          {totalQ > 0 && (
                             <p className="text-xs text-muted-foreground pt-1">
-                              {lang === "ar" ? `المجموع: ${q} قطعة` : `Total: ${q} item${q !== 1 ? "s" : ""}`}
-                              {" · "}{formatEGP(price * q, lang)}
+                              {lang === "ar" ? `الإجمالي: ${totalQ} قطعة` : `Total: ${totalQ} item${totalQ !== 1 ? "s" : ""}`}
+                              {" · "}{formatEGP(price * totalQ, lang)}
                             </p>
                           )}
                         </div>

@@ -26,7 +26,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 };
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
-import type { Order, InventoryEntry, Pricing, PromoCodeEntry } from "@/lib/api";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry } from "@/lib/api";
 import { PRODUCTS, BUNDLES, PROMO_CODES, formatEGP, effectivePrice } from "@/data/products";
 
 export const Route = createFileRoute("/dashboard")({
@@ -135,7 +135,14 @@ function OrderCard({
   order: Order;
   onStatusChange: (id: string, status: OrderStatus) => void;
   onDelete: (id: string) => void;
-  onEdit: (id: string, patch: { total?: number; notes?: string }) => Promise<void>;
+  onEdit: (id: string, patch: {
+    total?: number;
+    notes?: string;
+    items?: OrderItem[];
+    subtotal?: number;
+    bundleDiscount?: number;
+    promoDiscount?: number;
+  }) => Promise<void>;
   isDragging?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
@@ -144,6 +151,8 @@ function OrderCard({
   const [editTotal, setEditTotal] = useState(String(order.total));
   const [editNotes, setEditNotes] = useState(order.notes ?? "");
   const [editSaving, setEditSaving] = useState(false);
+  const [editItems, setEditItems] = useState<Array<OrderItem & { unitPrice: number }>>([]);
+  const computedSubtotal = editItems.reduce((s, item) => s + item.lineTotal, 0);
 
   const date = new Date(order.createdAt).toLocaleString("ar-EG", {
     dateStyle: "medium",
@@ -168,14 +177,46 @@ function OrderCard({
   const openEdit = () => {
     setEditTotal(String(order.total));
     setEditNotes(order.notes ?? "");
+    setEditItems(order.items.map((item) => ({
+      ...item,
+      unitPrice: item.qty > 0 ? item.lineTotal / item.qty : 0,
+    })));
     setEditMode(true);
   };
+
+  const updateItemQty = (index: number, newQty: number) => {
+    if (newQty < 1) return;
+    setEditItems((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, qty: newQty, lineTotal: Math.round(newQty * item.unitPrice) } : item
+      )
+    );
+  };
+
+  const removeItem = (index: number) => {
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  useEffect(() => {
+    if (!editMode) return;
+    const subtotal = editItems.reduce((s, item) => s + item.lineTotal, 0);
+    const total = Math.max(0, subtotal - (order.bundleDiscount ?? 0) - (order.promoDiscount ?? 0) + order.shippingFee);
+    setEditTotal(String(Math.round(total)));
+  }, [editItems, editMode, order.bundleDiscount, order.promoDiscount, order.shippingFee]);
 
   const saveEdit = async () => {
     const total = Number(editTotal);
     if (isNaN(total) || total < 0) return;
     setEditSaving(true);
-    await onEdit(order.id, { total, notes: editNotes });
+    const itemsToSave: OrderItem[] = editItems.map(({ unitPrice: _u, ...item }) => item);
+    await onEdit(order.id, {
+      items: itemsToSave,
+      subtotal: computedSubtotal,
+      bundleDiscount: order.bundleDiscount,
+      promoDiscount: order.promoDiscount,
+      total,
+      notes: editNotes,
+    });
     setEditMode(false);
     setEditSaving(false);
   };
@@ -237,22 +278,44 @@ function OrderCard({
 
       {/* Items */}
       <div className="mt-3 border-t border-border pt-3 space-y-1">
-        {order.items.map((item, i) => (
-          <div key={i} className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-ink truncate" dir="ltr">
-              {item.title} <span className="text-muted-foreground">× {item.qty}</span>
-            </span>
-            <span className="price-tag text-ink whitespace-nowrap">{formatEGP(item.lineTotal)}</span>
+        {editMode ? (
+          <div className="space-y-2">
+            {editItems.map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs text-ink flex-1 min-w-0 truncate" dir="ltr">{item.title}</span>
+                <div className="flex items-center border border-border rounded-lg overflow-hidden shrink-0">
+                  <button type="button" onClick={() => updateItemQty(i, item.qty - 1)} disabled={item.qty <= 1} className="px-2 py-1 text-sm hover:bg-soft disabled:opacity-30">−</button>
+                  <span className="w-7 text-center text-xs font-medium">{item.qty}</span>
+                  <button type="button" onClick={() => updateItemQty(i, item.qty + 1)} className="px-2 py-1 text-sm hover:bg-soft">+</button>
+                </div>
+                <span className="price-tag text-xs w-14 text-left shrink-0">{formatEGP(item.lineTotal)}</span>
+                <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 transition-colors shrink-0">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {editItems.length === 0 && <p className="text-xs text-muted-foreground">لا يوجد منتجات</p>}
           </div>
-        ))}
-        <div className="flex items-center justify-between pt-2 border-t border-dashed border-border mt-1">
-          <span className="text-[11px] text-muted-foreground">
-            {order.bundleDiscount > 0 && `خصم: −${formatEGP(order.bundleDiscount)} · `}
-            {order.promoDiscount > 0 && `كود: −${formatEGP(order.promoDiscount)} · `}
-            شحن: {formatEGP(order.shippingFee)}
-          </span>
-          <span className="price-tag text-sm text-gradient">{formatEGP(order.total)} EGP</span>
-        </div>
+        ) : (
+          <>
+            {order.items.map((item, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-ink truncate" dir="ltr">
+                  {item.title} <span className="text-muted-foreground">× {item.qty}</span>
+                </span>
+                <span className="price-tag text-ink whitespace-nowrap">{formatEGP(item.lineTotal)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-2 border-t border-dashed border-border mt-1">
+              <span className="text-[11px] text-muted-foreground">
+                {order.bundleDiscount > 0 && `خصم: −${formatEGP(order.bundleDiscount)} · `}
+                {order.promoDiscount > 0 && `كود: −${formatEGP(order.promoDiscount)} · `}
+                شحن: {formatEGP(order.shippingFee)}
+              </span>
+              <span className="price-tag text-sm text-gradient">{formatEGP(order.total)} EGP</span>
+            </div>
+          </>
+        )}
       </div>
 
       {order.notes && !editMode && (
@@ -264,6 +327,29 @@ function OrderCard({
       {/* Inline edit form */}
       {editMode && (
         <div className="mt-3 border-t border-border pt-3 space-y-2">
+          {/* Summary */}
+          <div className="text-[11px] text-muted-foreground space-y-1 bg-soft rounded-lg px-3 py-2">
+            <div className="flex justify-between">
+              <span>الإجمالي الفرعي</span>
+              <span className="price-tag text-ink">{formatEGP(computedSubtotal)}</span>
+            </div>
+            {order.bundleDiscount > 0 && (
+              <div className="flex justify-between text-deep-blue">
+                <span>خصم الباقة</span>
+                <span>−{formatEGP(order.bundleDiscount)}</span>
+              </div>
+            )}
+            {order.promoDiscount > 0 && (
+              <div className="flex justify-between text-deep-blue">
+                <span>كود الخصم</span>
+                <span>−{formatEGP(order.promoDiscount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>الشحن</span>
+              <span>{formatEGP(order.shippingFee)}</span>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-muted-foreground shrink-0">الإجمالي (جنيه):</label>
             <input
@@ -894,7 +980,14 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     setOrders((prev) => prev.filter((o) => o.id !== id));
   };
 
-  const handleEditOrder = useCallback(async (id: string, patch: { total?: number; notes?: string }) => {
+  const handleEditOrder = useCallback(async (id: string, patch: {
+    total?: number;
+    notes?: string;
+    items?: OrderItem[];
+    subtotal?: number;
+    bundleDiscount?: number;
+    promoDiscount?: number;
+  }) => {
     await api.editOrder(token, id, patch);
     setOrders((prev) =>
       prev.map((o) =>
@@ -903,6 +996,10 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               ...o,
               ...(patch.total !== undefined ? { total: patch.total } : {}),
               ...(patch.notes !== undefined ? { notes: (patch.notes || "").trim() || undefined } : {}),
+              ...(patch.items !== undefined ? { items: patch.items } : {}),
+              ...(patch.subtotal !== undefined ? { subtotal: patch.subtotal } : {}),
+              ...(patch.bundleDiscount !== undefined ? { bundleDiscount: patch.bundleDiscount } : {}),
+              ...(patch.promoDiscount !== undefined ? { promoDiscount: patch.promoDiscount } : {}),
             }
           : o
       )

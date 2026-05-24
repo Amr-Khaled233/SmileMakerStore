@@ -5,8 +5,8 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 // Public — is free shipping currently active?
-router.get("/free-shipping/public", (_req, res) => {
-  const db = readDb();
+router.get("/free-shipping/public", async (_req, res) => {
+  const db = await readDb();
   const w = db.freeShipping;
   if (!w) { res.json({ active: false }); return; }
   const now = Date.now();
@@ -15,13 +15,13 @@ router.get("/free-shipping/public", (_req, res) => {
 });
 
 // Protected — get full window config
-router.get("/free-shipping", requireAuth, (_req, res) => {
-  const db = readDb();
+router.get("/free-shipping", requireAuth, async (_req, res) => {
+  const db = await readDb();
   res.json(db.freeShipping ?? null);
 });
 
 // Protected — set window
-router.put("/free-shipping", requireAuth, (req, res) => {
+router.put("/free-shipping", requireAuth, async (req, res) => {
   const { from, to } = req.body as { from?: string; to?: string };
   if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
     res.status(400).json({ error: "from و to مطلوبان وصالحان" });
@@ -31,17 +31,17 @@ router.put("/free-shipping", requireAuth, (req, res) => {
     res.status(400).json({ error: "from يجب أن يكون قبل to" });
     return;
   }
-  const db = readDb();
+  const db = await readDb();
   db.freeShipping = { from, to };
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 
 // Protected — clear window
-router.delete("/free-shipping", requireAuth, (_req, res) => {
-  const db = readDb();
+router.delete("/free-shipping", requireAuth, async (_req, res) => {
+  const db = await readDb();
   db.freeShipping = null;
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 

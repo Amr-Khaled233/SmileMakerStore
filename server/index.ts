@@ -8,11 +8,23 @@ import pricingRouter from "./routes/pricing.js";
 import settingsRouter from "./routes/settings.js";
 
 const app = express();
-const PORT = Number(process.env.API_PORT ?? 3001);
+const PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
+
+// Support comma-separated list of allowed origins (e.g. for Vercel + local dev)
+const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: ${origin} not allowed`));
+      }
+    },
     credentials: true,
   })
 );

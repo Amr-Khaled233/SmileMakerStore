@@ -5,8 +5,8 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 // Public — returns which products/colors are out of stock (qty === 0)
-router.get("/public", (_req, res) => {
-  const db = readDb();
+router.get("/public", async (_req, res) => {
+  const db = await readDb();
   const outOfStock: string[] = [];
   const outOfStockColors: Record<string, string[]> = {};
 
@@ -23,46 +23,48 @@ router.get("/public", (_req, res) => {
 });
 
 // Protected — full inventory
-router.get("/", requireAuth, (_req, res) => {
-  const db = readDb();
+router.get("/", requireAuth, async (_req, res) => {
+  const db = await readDb();
   res.json(db.inventory);
 });
 
 // Protected — update product quantity
-router.patch("/:slug", requireAuth, (req, res) => {
+router.patch("/:slug", requireAuth, async (req, res) => {
   const { qty } = req.body as { qty?: number };
   if (typeof qty !== "number" || qty < 0) {
     res.status(400).json({ error: "qty must be a non-negative number" });
     return;
   }
-  const db = readDb();
-  let entry = db.inventory.find((e) => e.slug === req.params.slug);
-  if (!entry) {
-    entry = { slug: req.params.slug, qty };
-    db.inventory.push(entry);
+  const slug = String(req.params.slug);
+  const db = await readDb();
+  const existing = db.inventory.find((e) => e.slug === slug);
+  if (existing) {
+    existing.qty = qty;
   } else {
-    entry.qty = qty;
+    db.inventory.push({ slug, qty });
   }
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 
 // Protected — update a specific color quantity
-router.patch("/:slug/colors/:colorId", requireAuth, (req, res) => {
+router.patch("/:slug/colors/:colorId", requireAuth, async (req, res) => {
   const { qty } = req.body as { qty?: number };
   if (typeof qty !== "number" || qty < 0) {
     res.status(400).json({ error: "qty must be a non-negative number" });
     return;
   }
-  const db = readDb();
-  let entry = db.inventory.find((e) => e.slug === req.params.slug);
-  if (!entry) {
-    entry = { slug: req.params.slug, qty: 0, colorQty: {} };
-    db.inventory.push(entry);
+  const slug = String(req.params.slug);
+  const colorId = String(req.params.colorId);
+  const db = await readDb();
+  const existing = db.inventory.find((e) => e.slug === slug);
+  if (existing) {
+    if (!existing.colorQty) existing.colorQty = {};
+    existing.colorQty[colorId] = qty;
+  } else {
+    db.inventory.push({ slug, qty: 0, colorQty: { [colorId]: qty } });
   }
-  if (!entry.colorQty) entry.colorQty = {};
-  entry.colorQty[req.params.colorId] = qty;
-  writeDb(db);
+  await writeDb(db);
   res.json({ success: true });
 });
 

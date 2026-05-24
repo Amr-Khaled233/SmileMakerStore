@@ -1,13 +1,13 @@
-import type { Order, InventoryEntry, Pricing, PromoCodeEntry } from "../../server/types.js";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry } from "../../server/types.js";
 
-export type { Order, InventoryEntry, Pricing, PromoCodeEntry };
+export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry };
 
 export type PublicInventoryStatus = {
   outOfStock: string[];
   outOfStockColors: Record<string, string[]>;
 };
 
-const BASE = "/api";
+const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 
 async function req<T>(
   method: string,
@@ -85,8 +85,15 @@ export const api = {
   deletePromoCode: (token: string, code: string) =>
     req<{ success: boolean }>("DELETE", `/pricing/promoCodes/${encodeURIComponent(code)}`, undefined, token),
 
-  // Edit order total / notes (manager)
-  editOrder: (token: string, id: string, patch: { total?: number; notes?: string }) =>
+  // Edit order total / notes / items (manager)
+  editOrder: (token: string, id: string, patch: {
+    total?: number;
+    notes?: string;
+    items?: OrderItem[];
+    subtotal?: number;
+    bundleDiscount?: number;
+    promoDiscount?: number;
+  }) =>
     req<{ success: boolean }>("PATCH", `/orders/${id}`, patch, token),
 
   // Free shipping window (public)

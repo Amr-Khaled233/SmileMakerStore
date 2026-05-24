@@ -1,30 +1,35 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { MongoClient, type Db } from "mongodb";
 import type { DbData, FreeShippingWindow } from "./types.js";
 
 type DbDataRaw = Omit<DbData, "freeShipping"> & { freeShipping?: FreeShippingWindow };
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_FILE = path.resolve(__dirname, "../data/db.json");
-
 const EMPTY_PRICING = { products: [], bundles: [], promoCodes: [] };
 const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null };
 
-export function readDb(): DbData {
-  try {
-    if (!fs.existsSync(DB_FILE)) return { ...DEFAULT };
-    const raw = fs.readFileSync(DB_FILE, "utf-8");
-    const data = JSON.parse(raw) as DbDataRaw;
-    if (!data.pricing) data.pricing = { ...EMPTY_PRICING };
-    return { ...data, freeShipping: data.freeShipping ?? null };
-  } catch {
-    return { ...DEFAULT };
+let _client: MongoClient | null = null;
+let _db: Db | null = null;
+
+async function getCol() {
+  if (!_db) {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) throw new Error("MONGODB_URI environment variable is not set");
+    _client = new MongoClient(uri);
+    await _client.connect();
+    _db = _client.db("smilemaker");
   }
+  return _db.collection<DbDataRaw>("state");
 }
 
-export function writeDb(data: DbData): void {
-  const dir = path.dirname(DB_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
+export async function readDb(): Promise<DbData> {
+  const col = await getCol();
+  const doc = await col.findOne({}, { projection: { _id: 0 } });
+  if (!doc) return { ...DEFAULT };
+  const data = doc as DbDataRaw;
+  if (!data.pricing) data.pricing = { ...EMPTY_PRICING };
+  return { ...data, freeShipping: data.freeShipping ?? null };
+}
+
+export async function writeDb(data: DbData): Promise<void> {
+  const col = await getCol();
+  await col.replaceOne({}, data as DbDataRaw, { upsert: true });
 }
