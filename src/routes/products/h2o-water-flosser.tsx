@@ -8,6 +8,7 @@ export const Route = createFileRoute("/products/h2o-water-flosser")({
     <Layout>
       <ProductDetail
         eyebrow={{ en: "Sale · H2O Series", ar: "عرض · سلسلة H2O" }}
+        slug="h2o-water-flosser"
         title="H2O Water Flosser"
         tagline={{
           en: "Pressurized hydro-pulse cleaning that reaches where brushing can't.",

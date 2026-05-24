@@ -47,6 +47,10 @@ export type Product = {
   badge?: L;
   colors?: ColorOption[];
   bulkDeal?: { qty: number; price: number; label: L };
+  /** True when the product is completely out of stock */
+  outOfStock?: boolean;
+  /** Color IDs that are currently out of stock */
+  outOfStockColors?: string[];
 };
 
 export const ORTHO_KIT_COLORS: ColorOption[] = [

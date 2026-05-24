@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OrderRouteImport } from './routes/order'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ import { Route as ProductsElectricalDentalBrushRouteImport } from './routes/prod
 const OrderRoute = OrderRouteImport.update({
   id: '/order',
   path: '/order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
   '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
   '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
   '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
   '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
   '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
   '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/dashboard'
     | '/order'
     | '/products/electrical-dental-brush'
     | '/products/h2o-water-flosser'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/dashboard'
     | '/order'
     | '/products/electrical-dental-brush'
     | '/products/h2o-water-flosser'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/contact'
+    | '/dashboard'
     | '/order'
     | '/products/electrical-dental-brush'
     | '/products/h2o-water-flosser'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
+  DashboardRoute: typeof DashboardRoute
   OrderRoute: typeof OrderRoute
   ProductsElectricalDentalBrushRoute: typeof ProductsElectricalDentalBrushRoute
   ProductsH2oWaterFlosserRoute: typeof ProductsH2oWaterFlosserRoute
@@ -169,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/order'
       fullPath: '/order'
       preLoaderRoute: typeof OrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
+  DashboardRoute: DashboardRoute,
   OrderRoute: OrderRoute,
   ProductsElectricalDentalBrushRoute: ProductsElectricalDentalBrushRoute,
   ProductsH2oWaterFlosserRoute: ProductsH2oWaterFlosserRoute,

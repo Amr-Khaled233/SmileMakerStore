@@ -8,6 +8,7 @@ export const Route = createFileRoute("/products/electrical-dental-brush")({
     <Layout>
       <ProductDetail
         eyebrow={{ en: "Daily ritual", ar: "طقس يومي" }}
+        slug="electrical-dental-brush"
         title="Electric Toothbrush"
         tagline={{ en: "Advanced sonic clean with minimal effort.", ar: "تنظيف سونيك متقدم بأقل مجهود." }}
         price={650}

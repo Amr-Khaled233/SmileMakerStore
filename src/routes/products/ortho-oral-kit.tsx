@@ -8,6 +8,7 @@ export const Route = createFileRoute("/products/ortho-oral-kit")({
     <Layout>
       <ProductDetail
         eyebrow={{ en: "Ortho Series", ar: "سلسلة Ortho" }}
+        slug="ortho-oral-kit"
         title="Ortho Kit"
         tagline={{
           en: "All-in-one 8-piece daily set for braces & oral hygiene.",

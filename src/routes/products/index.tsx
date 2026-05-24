@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
 import { ArrowRight, Star, Sparkles, Tag } from "lucide-react";
-import { PRODUCTS, BUNDLES, getProduct, formatEGP, effectivePrice } from "@/data/products";
+import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
+import { useState, useEffect } from "react";
+import { api, type Pricing } from "@/lib/api";
 
 export const Route = createFileRoute("/products/")({
   component: ProductsPage,
@@ -10,6 +12,22 @@ export const Route = createFileRoute("/products/")({
 
 function ProductsPage() {
   const { t, tl, lang } = useT();
+  const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
+  useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
+
+  const products = PRODUCTS.map((p) => {
+    const ov = pricing.products.find((x) => x.slug === p.slug);
+    return {
+      ...p,
+      price: ov?.price ?? p.price,
+      salePrice: ov !== undefined ? (ov.salePrice ?? undefined) : p.salePrice,
+    };
+  });
+  const bundles = BUNDLES.map((b) => {
+    const ov = pricing.bundles.find((x) => x.id === b.id);
+    return { ...b, fixedPrice: ov?.price };
+  });
+
   return (
     <Layout>
       <section className="section-pad bg-soft relative overflow-hidden">
@@ -25,7 +43,7 @@ function ProductsPage() {
 
       <section className="pb-12 -mt-10">
         <div className="container-lux grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {PRODUCTS.map((p) => {
+          {products.map((p) => {
             const price = effectivePrice(p);
             const onSale = p.salePrice != null;
             return (
@@ -42,7 +60,7 @@ function ProductsPage() {
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-xl font-display" dir="ltr">{p.title}</h3>
                     <div className="flex items-end gap-2 whitespace-nowrap">
-                      <span className="text-xl font-display text-gradient">{formatEGP(price, lang)}</span>
+                      <span className="text-xl price-tag text-gradient">{formatEGP(price, lang)}</span>
                       {onSale && <span className="text-xs text-muted-foreground line-through">{formatEGP(p.price, lang)}</span>}
                     </div>
                   </div>
@@ -75,16 +93,14 @@ function ProductsPage() {
           </div>
 
           <div className="mt-12 grid md:grid-cols-3 gap-6">
-            {BUNDLES.map((b) => {
-              const items = b.items.map(getProduct);
+            {bundles.map((b) => {
+              const items = b.items.map((s) => products.find((p) => p.slug === s)!);
               const total = items.reduce((s, i) => s + effectivePrice(i), 0);
-              const discounted = Math.round(total * (1 - b.discountPct / 100));
+              const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
+              const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
               return (
                 <div key={b.id} className="lux-card p-7 flex flex-col">
-                  <div className="flex items-center gap-2 text-xs font-medium text-deep-blue">
-                    <Tag className="h-3.5 w-3.5" /> {t("products.save")} {b.discountPct}%
-                  </div>
-                  <h3 className="mt-3 text-2xl font-display">{tl(b.title)}</h3>
+                  <h3 className="text-2xl font-display">{tl(b.title)}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">{tl(b.tagline)}</p>
 
                   <div className="mt-5 flex items-center gap-3">
@@ -95,9 +111,16 @@ function ProductsPage() {
                     ))}
                   </div>
 
-                  <div className="mt-5 flex items-end gap-3">
-                    <span className="text-2xl font-display text-gradient">{formatEGP(discounted, lang)}</span>
-                    <span className="pb-1 text-sm text-muted-foreground line-through">{formatEGP(total, lang)}</span>
+                  <div className="mt-5 space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="line-through">{formatEGP(total, lang)}</span>
+                      {savingsPct > 0 && (
+                        <span className="ms-2 text-xs font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5">
+                          −{savingsPct}%
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
                   <Link to="/order" className="btn-primary mt-6 text-sm w-fit">

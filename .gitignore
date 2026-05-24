@@ -1,3 +1,7 @@
+# Environment & data
+.env
+data/db.json
+
 # Logs
 logs
 *.log

@@ -8,6 +8,7 @@ export const Route = createFileRoute("/products/ortho-sheet")({
     <Layout>
       <ProductDetail
         eyebrow={{ en: "Orthodontic comfort", ar: "راحة التقويم" }}
+        slug="ortho-sheet"
         title="Orthodontic Wax"
         tagline={{ en: "Hypoallergenic comfort wax for anyone wearing braces.", ar: "شمع لا يسبب الحساسية لراحة كل من يرتدي تقويماً." }}
         price={50}
