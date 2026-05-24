@@ -583,6 +583,13 @@ function InventorySection({ token }: { token: string }) {
 
 // ─── Pricing Section ─────────────────────────────────────────────────────────
 
+function toDatetimeLocal(isoStr: string): string {
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function PricingSection({ token }: { token: string }) {
   const [productDrafts, setProductDrafts] = useState<Record<string, { price: string; salePrice: string }>>({});
   const [bundleDrafts, setBundleDrafts] = useState<Record<string, string>>({});
@@ -619,11 +626,11 @@ function PricingSection({ token }: { token: string }) {
 
     setPromos(data.promoCodes);
 
-    // Load free shipping window
+    // Load free shipping window — convert UTC ISO from server to local datetime-local format
     const fs = await api.getFreeShipping(token).catch(() => null);
     if (fs) {
-      setFsFrom(fs.from);
-      setFsTo(fs.to);
+      setFsFrom(toDatetimeLocal(fs.from));
+      setFsTo(toDatetimeLocal(fs.to));
       const now = Date.now();
       setFsActive(new Date(fs.from).getTime() <= now && now <= new Date(fs.to).getTime());
     } else {
@@ -676,7 +683,10 @@ function PricingSection({ token }: { token: string }) {
   const saveFreeShipping = async () => {
     if (!fsFrom || !fsTo) return;
     setFsSaving(true);
-    await api.setFreeShipping(token, fsFrom, fsTo).catch(() => {});
+    // Convert local datetime-local values to UTC ISO so the server compares correctly
+    const fromUTC = new Date(fsFrom).toISOString();
+    const toUTC = new Date(fsTo).toISOString();
+    await api.setFreeShipping(token, fromUTC, toUTC).catch(() => {});
     await load();
     setFsSaving(false);
   };

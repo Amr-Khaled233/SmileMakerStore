@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug, type Product } from "@/data/products";
@@ -40,6 +40,8 @@ function OrderPage() {
   const [selectedBundleIds, setSelectedBundleIds] = useState<string[]>([]);
   // bundleId → slug → colorId  (required for color products inside a bundle)
   const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>>>({});
+  const [colorErrorBundles, setColorErrorBundles] = useState<Set<string>>(new Set());
+  const bundleRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => { api.getInventoryStatus().then(setInventoryStatus).catch(() => {}); }, []);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
@@ -200,14 +202,20 @@ function OrderPage() {
       return;
     }
     // Validate bundle color selections
+    const missingColorIds = new Set<string>();
     for (const b of matchedBundles) {
       for (const slug of b.items) {
         const p = products.find((x) => x.slug === slug);
         if (p?.colors?.length && !bundleColorSelections[b.id]?.[slug]) {
-          setErrors({ items: lang === "ar" ? `اختر لون لكل منتج في الباقة "${tl(b.title)}"` : `Select a color for all products in bundle "${tl(b.title)}"` });
-          return;
+          missingColorIds.add(b.id);
         }
       }
+    }
+    if (missingColorIds.size > 0) {
+      setColorErrorBundles(missingColorIds);
+      const firstId = [...missingColorIds][0];
+      bundleRefs.current[firstId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
     }
     const result = orderSchema.safeParse(form);
     if (!result.success) {
@@ -406,7 +414,13 @@ function OrderPage() {
                   return (
                     <div
                       key={b.id}
-                      className={`rounded-2xl border-2 p-4 transition-all ${bundleOos ? "opacity-55 border-border bg-white" : isActive ? "border-deep-blue bg-soft" : "border-border bg-white"}`}
+                      ref={(el) => { bundleRefs.current[b.id] = el; }}
+                      className={`rounded-2xl border-2 p-4 transition-all ${
+                        bundleOos ? "opacity-55 border-border bg-white"
+                        : colorErrorBundles.has(b.id) ? "border-destructive bg-red-50/40"
+                        : isActive ? "border-deep-blue bg-soft"
+                        : "border-border bg-white"
+                      }`}
                     >
                       {/* Clickable toggle header */}
                       <button
@@ -474,6 +488,11 @@ function OrderPage() {
                                             ...prev,
                                             [b.id]: { ...(prev[b.id] ?? {}), [cp.slug]: c.id },
                                           }));
+                                          setColorErrorBundles((prev) => {
+                                            const next = new Set(prev);
+                                            next.delete(b.id);
+                                            return next;
+                                          });
                                         }}
                                         title={tl(c.label)}
                                         className={`relative h-7 w-7 rounded-full border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isSelected ? "border-deep-blue scale-110 shadow-sm" : "border-transparent hover:border-deep-blue/40"}`}
@@ -488,11 +507,15 @@ function OrderPage() {
                               </div>
                             );
                           })}
-                          {!allColorsSelected && (
+                          {colorErrorBundles.has(b.id) ? (
+                            <p className="text-xs text-destructive font-medium bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                              {lang === "ar" ? "اختر لون لكل منتج في الباقة عشان تكمل الأوردر" : "Select a color for each product in the bundle to continue"}
+                            </p>
+                          ) : !allColorsSelected ? (
                             <p className="text-[11px] text-amber-600 bg-amber-50 rounded-lg px-3 py-1.5">
                               {lang === "ar" ? "لازم تختار لون لكل منتج عشان تكمل الأوردر" : "You must select a color for each product to complete the order"}
                             </p>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </div>
