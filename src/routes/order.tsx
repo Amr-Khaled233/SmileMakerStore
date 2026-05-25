@@ -38,8 +38,8 @@ function OrderPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [freeShippingActive, setFreeShippingActive] = useState(false);
   const [bundleQty, setBundleQty] = useState<Record<string, number>>({});
-  // bundleId → slug → colorId  (required for color products inside a bundle)
-  const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>>>({});
+  // bundleId → per-instance array → slug → colorId
+  const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>[]>>({});
   const [colorErrorBundles, setColorErrorBundles] = useState<Set<string>>(new Set());
   const bundleRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -128,15 +128,17 @@ function OrderPage() {
       acc.set(key, ex ? { ...ex, qty: ex.qty + entry.qty, lineTotal: ex.lineTotal + entry.lineTotal } : entry);
     };
 
-    // Bundle items — use selected color if product has colors
+    // Bundle items — iterate each instance separately so different colors stack correctly
     for (const b of matchedBundles) {
       const bQty = bundleQty[b.id] ?? 1;
-      for (const slug of b.items) {
-        const p = products.find((x) => x.slug === slug)!;
-        const selectedColorId = p.colors?.length ? bundleColorSelections[b.id]?.[slug] : undefined;
-        const color = selectedColorId ? p.colors?.find((c) => c.id === selectedColorId) : undefined;
-        const key = selectedColorId ? `${slug}__${selectedColorId}` : slug;
-        add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: bQty, lineTotal: effectivePrice(p) * bQty });
+      for (let i = 0; i < bQty; i++) {
+        for (const slug of b.items) {
+          const p = products.find((x) => x.slug === slug)!;
+          const selectedColorId = p.colors?.length ? bundleColorSelections[b.id]?.[i]?.[slug] : undefined;
+          const color = selectedColorId ? p.colors?.find((c) => c.id === selectedColorId) : undefined;
+          const key = selectedColorId ? `${slug}__${selectedColorId}` : slug;
+          add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: 1, lineTotal: effectivePrice(p) });
+        }
       }
     }
 
@@ -203,13 +205,16 @@ function OrderPage() {
       setErrors({ items: t("order.emptyError") });
       return;
     }
-    // Validate bundle color selections
+    // Validate bundle color selections — every instance must have all colors chosen
     const missingColorIds = new Set<string>();
     for (const b of matchedBundles) {
-      for (const slug of b.items) {
-        const p = products.find((x) => x.slug === slug);
-        if (p?.colors?.length && !bundleColorSelections[b.id]?.[slug]) {
-          missingColorIds.add(b.id);
+      const bQty = bundleQty[b.id] ?? 1;
+      for (let i = 0; i < bQty; i++) {
+        for (const slug of b.items) {
+          const p = products.find((x) => x.slug === slug);
+          if (p?.colors?.length && !bundleColorSelections[b.id]?.[i]?.[slug]) {
+            missingColorIds.add(b.id);
+          }
         }
       }
     }
@@ -407,10 +412,13 @@ function OrderPage() {
                   const decBundle = () => {
                     const nq = Math.max(0, qty - 1);
                     setBundleQty((q) => ({ ...q, [b.id]: nq }));
+                    setBundleColorSelections((prev) => ({ ...prev, [b.id]: (prev[b.id] ?? []).slice(0, nq) }));
                     if (nq === 0) setColorErrorBundles((prev) => { const n = new Set(prev); n.delete(b.id); return n; });
                   };
                   const colorProductsInBundle = items.filter((i) => i.colors?.length);
-                  const allColorsSelected = colorProductsInBundle.every((i) => !!bundleColorSelections[b.id]?.[i.slug]);
+                  const allColorsSelected = Array.from({ length: qty }, (_, i) =>
+                    colorProductsInBundle.every((cp) => !!bundleColorSelections[b.id]?.[i]?.[cp.slug])
+                  ).every(Boolean);
                   return (
                     <div
                       key={b.id}
@@ -457,60 +465,72 @@ function OrderPage() {
                         </div>
                       </div>
 
-                      {/* Color selectors — shown when bundle is active and has color products */}
+                      {/* Color selectors — one section per bundle instance */}
                       {isActive && colorProductsInBundle.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
-                          <p className="text-xs font-medium text-ink flex items-center gap-1.5">
-                            <Check className="h-3.5 w-3.5 text-deep-blue" />
-                            {lang === "ar" ? "اختر لون كل منتج:" : "Choose a color for each product:"}
-                          </p>
-                          {colorProductsInBundle.map((cp) => {
-                            const selectedColorId = bundleColorSelections[b.id]?.[cp.slug];
-                            const selectedColor = cp.colors?.find((c) => c.id === selectedColorId);
+                        <div className="mt-4 pt-4 border-t border-border/60 space-y-4">
+                          {Array.from({ length: qty }, (_, instanceIdx) => {
+                            const instanceColors = bundleColorSelections[b.id]?.[instanceIdx] ?? {};
+                            const instanceComplete = colorProductsInBundle.every((cp) => !!instanceColors[cp.slug]);
                             return (
-                              <div key={cp.slug}>
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <p className="text-xs text-muted-foreground" dir="ltr">{cp.title}</p>
-                                  {selectedColor && <span className="text-xs font-medium text-ink">— {tl(selectedColor.label)}</span>}
-                                  {!selectedColorId && <span className="text-[10px] text-destructive font-medium">{lang === "ar" ? "مطلوب" : "Required"}</span>}
-                                </div>
-                                <div className="flex gap-2 flex-wrap">
-                                  {cp.colors!.map((c) => {
-                                    const colorOos = cp.outOfStockColors?.includes(c.id) === true;
-                                    const isSelected = selectedColorId === c.id;
-                                    return (
-                                      <button
-                                        key={c.id}
-                                        type="button"
-                                        disabled={colorOos}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setBundleColorSelections((prev) => ({
-                                            ...prev,
-                                            [b.id]: { ...(prev[b.id] ?? {}), [cp.slug]: c.id },
-                                          }));
-                                          setColorErrorBundles((prev) => {
-                                            const next = new Set(prev);
-                                            next.delete(b.id);
-                                            return next;
-                                          });
-                                        }}
-                                        title={tl(c.label)}
-                                        className={`relative h-7 w-7 rounded-full border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isSelected ? "border-deep-blue scale-110 shadow-sm" : "border-transparent hover:border-deep-blue/40"}`}
-                                        style={{ backgroundColor: c.hex }}
-                                      >
-                                        {colorOos && <span className="absolute inset-0 flex items-center justify-center"><span className="absolute w-[130%] h-px bg-white/80 rotate-45 origin-center" /></span>}
-                                        {isSelected && <span className="absolute inset-0 flex items-center justify-center"><Check className="h-3.5 w-3.5 text-white drop-shadow" /></span>}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                              <div key={instanceIdx} className={qty > 1 ? "rounded-xl border border-border/60 p-3 space-y-3" : "space-y-3"}>
+                                {qty > 1 && (
+                                  <p className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                                    <span className="inline-flex h-4 w-4 rounded-full bg-deep-blue text-white text-[10px] items-center justify-center shrink-0">{instanceIdx + 1}</span>
+                                    {lang === "ar" ? `الباقة ${instanceIdx + 1}` : `Bundle ${instanceIdx + 1}`}
+                                    {instanceComplete && <Check className="h-3 w-3 text-emerald-500 ms-auto" />}
+                                  </p>
+                                )}
+                                <p className="text-xs font-medium text-ink flex items-center gap-1.5">
+                                  <Check className="h-3.5 w-3.5 text-deep-blue" />
+                                  {lang === "ar" ? "اختر لون كل منتج:" : "Choose a color for each product:"}
+                                </p>
+                                {colorProductsInBundle.map((cp) => {
+                                  const selectedColorId = instanceColors[cp.slug];
+                                  const selectedColor = cp.colors?.find((c) => c.id === selectedColorId);
+                                  return (
+                                    <div key={cp.slug}>
+                                      <div className="flex items-center gap-2 mb-1.5">
+                                        <p className="text-xs text-muted-foreground" dir="ltr">{cp.title}</p>
+                                        {selectedColor && <span className="text-xs font-medium text-ink">— {tl(selectedColor.label)}</span>}
+                                        {!selectedColorId && <span className="text-[10px] text-destructive font-medium">{lang === "ar" ? "مطلوب" : "Required"}</span>}
+                                      </div>
+                                      <div className="flex gap-2 flex-wrap">
+                                        {cp.colors!.map((c) => {
+                                          const colorOos = cp.outOfStockColors?.includes(c.id) === true;
+                                          const isSelected = selectedColorId === c.id;
+                                          return (
+                                            <button
+                                              key={c.id}
+                                              type="button"
+                                              disabled={colorOos}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setBundleColorSelections((prev) => {
+                                                  const instances = [...(prev[b.id] ?? [])];
+                                                  instances[instanceIdx] = { ...(instances[instanceIdx] ?? {}), [cp.slug]: c.id };
+                                                  return { ...prev, [b.id]: instances };
+                                                });
+                                                setColorErrorBundles((prev) => { const n = new Set(prev); n.delete(b.id); return n; });
+                                              }}
+                                              title={tl(c.label)}
+                                              className={`relative h-7 w-7 rounded-full border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isSelected ? "border-deep-blue scale-110 shadow-sm" : "border-transparent hover:border-deep-blue/40"}`}
+                                              style={{ backgroundColor: c.hex }}
+                                            >
+                                              {colorOos && <span className="absolute inset-0 flex items-center justify-center"><span className="absolute w-[130%] h-px bg-white/80 rotate-45 origin-center" /></span>}
+                                              {isSelected && <span className="absolute inset-0 flex items-center justify-center"><Check className="h-3.5 w-3.5 text-white drop-shadow" /></span>}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             );
                           })}
                           {colorErrorBundles.has(b.id) ? (
                             <p className="text-xs text-destructive font-medium bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                              {lang === "ar" ? "اختر لون لكل منتج في الباقة عشان تكمل الأوردر" : "Select a color for each product in the bundle to continue"}
+                              {lang === "ar" ? "اختر لون لكل منتج في كل الباقات عشان تكمل الأوردر" : "Select a color for each product in every bundle to continue"}
                             </p>
                           ) : !allColorsSelected ? (
                             <p className="text-[11px] text-amber-600 bg-amber-50 rounded-lg px-3 py-1.5">
