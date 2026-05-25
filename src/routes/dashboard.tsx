@@ -1351,13 +1351,13 @@ function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
                           </p>
                         )}
                       </div>
-                      <div className="space-y-1">
+                      <div className="grid text-xs gap-y-1" style={{ gridTemplateColumns: "1fr auto auto" }}>
                         {(o.items ?? []).map((it, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-ink truncate" dir="ltr">{it.title}</span>
-                            <span className="text-muted-foreground shrink-0">×{it.qty}</span>
-                            <span className="price-tag text-ink shrink-0">{formatEGP(it.lineTotal)}</span>
-                          </div>
+                          <>
+                            <span key={`t${idx}`} className="text-ink truncate pe-2" dir="ltr">{it.title}</span>
+                            <span key={`q${idx}`} className="text-muted-foreground text-center px-2">×{it.qty}</span>
+                            <span key={`p${idx}`} className="price-tag text-ink tabular-nums text-start">{formatEGP(it.lineTotal)}</span>
+                          </>
                         ))}
                       </div>
                       <div className="border-t border-dashed border-border pt-2 space-y-1 text-xs text-muted-foreground">
