@@ -3,7 +3,7 @@ import { Layout } from "@/components/site/Layout";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
-import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug, type Product } from "@/data/products";
+import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
 import { useT } from "@/lib/i18n";
 import { api, type PublicInventoryStatus, type Pricing } from "@/lib/api";
 
@@ -224,7 +224,7 @@ function OrderPage() {
     setPromoError(null);
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (lines.length === 0) {
       setErrors({ items: t("order.emptyError") });
@@ -321,14 +321,16 @@ function OrderPage() {
     const waItemsText = confirmed.items
       .map((it) => `• ${it.title} × ${it.qty} = ${it.lineTotal.toLocaleString("ar-EG")} ج.م`)
       .join("\n");
-    let waMsg = `🛍️ طلب جديد من Smile Maker\n━━━━━━━━━━━━\nرقم الطلب: ${confirmed.id}\n\n`;
+    let waMsg = `🛍️ طلبك من Smile Maker ✨\n━━━━━━━━━━━━\nرقم الطلب: ${confirmed.id}\n\n`;
     waMsg += `👤 الاسم: ${confirmed.name}\n📱 الهاتف: ${confirmed.phone}\n📍 العنوان: ${confirmed.address}، ${confirmed.city}\n\n`;
     waMsg += `🛒 المنتجات:\n${waItemsText}\n\n━━━━━━━━━━━━\n`;
     if (confirmed.bundleDiscount > 0) waMsg += `خصم الباندل: −${confirmed.bundleDiscount.toLocaleString("ar-EG")} ج.م\n`;
     if (confirmed.promoDiscount > 0) waMsg += `خصم الكود (${confirmed.promoCode}): −${confirmed.promoDiscount.toLocaleString("ar-EG")} ج.م\n`;
     waMsg += `الشحن (${confirmed.shippingZone}): ${confirmed.shippingFee.toLocaleString("ar-EG")} ج.م\n`;
     waMsg += `💰 الإجمالي: ${confirmed.total.toLocaleString("ar-EG")} ج.م`;
-    const waUrl = `https://wa.me/201050852966?text=${encodeURIComponent(waMsg)}`;
+    const customerDigits = confirmed.phone.replace(/\D/g, "");
+    const customerWaNumber = customerDigits.startsWith("20") ? customerDigits : customerDigits.startsWith("0") ? "2" + customerDigits : "20" + customerDigits;
+    const waUrl = `https://wa.me/${customerWaNumber}?text=${encodeURIComponent(waMsg)}`;
 
     return (
       <Layout>
