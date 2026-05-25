@@ -37,7 +37,7 @@ function OrderPage() {
   const [inventoryStatus, setInventoryStatus] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {} });
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [freeShippingActive, setFreeShippingActive] = useState(false);
-  const [selectedBundleIds, setSelectedBundleIds] = useState<string[]>([]);
+  const [bundleQty, setBundleQty] = useState<Record<string, number>>({});
   // bundleId → slug → colorId  (required for color products inside a bundle)
   const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>>>({});
   const [colorErrorBundles, setColorErrorBundles] = useState<Set<string>>(new Set());
@@ -112,10 +112,10 @@ function OrderPage() {
   const matchedBundles = useMemo(
     () => dynamicBundles.filter(
       (b) =>
-        selectedBundleIds.includes(b.id) &&
+        (bundleQty[b.id] ?? 0) > 0 &&
         b.items.every((s) => !products.find((p) => p.slug === s)?.outOfStock),
     ),
-    [selectedBundleIds, products, dynamicBundles],
+    [bundleQty, products, dynamicBundles],
   );
 
   // Lines = bundle item contributions (1 per product per matched bundle, no color)
@@ -130,12 +130,13 @@ function OrderPage() {
 
     // Bundle items — use selected color if product has colors
     for (const b of matchedBundles) {
+      const bQty = bundleQty[b.id] ?? 1;
       for (const slug of b.items) {
         const p = products.find((x) => x.slug === slug)!;
         const selectedColorId = p.colors?.length ? bundleColorSelections[b.id]?.[slug] : undefined;
         const color = selectedColorId ? p.colors?.find((c) => c.id === selectedColorId) : undefined;
         const key = selectedColorId ? `${slug}__${selectedColorId}` : slug;
-        add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: 1, lineTotal: effectivePrice(p) });
+        add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: bQty, lineTotal: effectivePrice(p) * bQty });
       }
     }
 
@@ -161,6 +162,7 @@ function OrderPage() {
 
   const bundleDiscount = useMemo(() => {
     return matchedBundles.reduce((sum, b) => {
+      const bQty = bundleQty[b.id] ?? 1;
       const itemsSum = b.items
         .map((s) => effectivePrice(products.find((p) => p.slug === s)!))
         .reduce((a, c) => a + c, 0);
@@ -168,9 +170,9 @@ function OrderPage() {
         b.fixedPrice !== undefined
           ? Math.max(0, itemsSum - b.fixedPrice)
           : Math.round((itemsSum * b.discountPct) / 100);
-      return sum + discount;
+      return sum + discount * bQty;
     }, 0);
-  }, [matchedBundles, products]);
+  }, [matchedBundles, products, bundleQty]);
 
   const promoDiscount = appliedPromo
     ? Math.round(((subtotal - bundleDiscount) * appliedPromo.pct) / 100)
@@ -278,7 +280,7 @@ function OrderPage() {
     setConfirmed(null);
     setStandaloneQty({});
     setStandaloneColorQty({});
-    setSelectedBundleIds([]);
+    setBundleQty({});
     setBundleColorSelections({});
     setForm({ name: "", phone: "", email: "", address: "", city: "", notes: "" });
     setAppliedPromo(null);
@@ -399,15 +401,13 @@ function OrderPage() {
                   const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
                   const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
                   const bundleOos = b.items.some((s) => products.find((p) => p.slug === s)?.outOfStock === true);
-                  const isActive = !bundleOos && selectedBundleIds.includes(b.id);
-                  const toggleBundle = () => {
-                    if (bundleOos) return;
-                    if (selectedBundleIds.includes(b.id)) {
-                      setSelectedBundleIds((ids) => ids.filter((id) => id !== b.id));
-                      setBundleColorSelections((prev) => { const next = { ...prev }; delete next[b.id]; return next; });
-                    } else {
-                      setSelectedBundleIds((ids) => [...ids, b.id]);
-                    }
+                  const qty = bundleQty[b.id] ?? 0;
+                  const isActive = !bundleOos && qty > 0;
+                  const incBundle = () => setBundleQty((q) => ({ ...q, [b.id]: qty + 1 }));
+                  const decBundle = () => {
+                    const nq = Math.max(0, qty - 1);
+                    setBundleQty((q) => ({ ...q, [b.id]: nq }));
+                    if (nq === 0) setColorErrorBundles((prev) => { const n = new Set(prev); n.delete(b.id); return n; });
                   };
                   const colorProductsInBundle = items.filter((i) => i.colors?.length);
                   const allColorsSelected = colorProductsInBundle.every((i) => !!bundleColorSelections[b.id]?.[i.slug]);
@@ -422,16 +422,11 @@ function OrderPage() {
                         : "border-border bg-white"
                       }`}
                     >
-                      {/* Clickable toggle header */}
-                      <button
-                        type="button"
-                        onClick={toggleBundle}
-                        disabled={bundleOos}
-                        className="w-full text-start disabled:cursor-not-allowed"
-                      >
+                      <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-display text-base leading-snug">{tl(b.title)}</p>
                           {bundleOos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                          {isActive && <span className="text-[10px] font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5 shrink-0">× {qty}</span>}
                         </div>
                         <div className="mt-3 flex gap-2">
                           {items.map((i) => (
@@ -448,13 +443,19 @@ function OrderPage() {
                             </p>
                             <span className={`price-tag text-lg ${bundleOos ? "text-muted-foreground" : "text-gradient"}`}>{formatEGP(discounted, lang)}</span>
                           </div>
-                          {bundleOos ? null : isActive ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><X className="h-3.5 w-3.5" /> {lang === "ar" ? "إزالة" : "Remove"}</span>
-                          ) : (
-                            <span className="text-xs font-medium text-deep-blue">{lang === "ar" ? "+ أضف" : "+ Add"}</span>
+                          {!bundleOos && (
+                            <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5 shrink-0">
+                              <button type="button" onClick={decBundle} disabled={qty === 0} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="w-6 text-center text-sm font-medium">{qty}</span>
+                              <button type="button" onClick={incBundle} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           )}
                         </div>
-                      </button>
+                      </div>
 
                       {/* Color selectors — shown when bundle is active and has color products */}
                       {isActive && colorProductsInBundle.length > 0 && (
