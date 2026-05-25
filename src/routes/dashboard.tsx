@@ -26,7 +26,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 };
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
-import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry } from "@/lib/api";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct } from "@/lib/api";
 import { PRODUCTS, BUNDLES, PROMO_CODES, formatEGP, effectivePrice } from "@/data/products";
 
 export const Route = createFileRoute("/dashboard")({
@@ -1397,12 +1397,213 @@ function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
   );
 }
 
+// ─── Products Management Section ─────────────────────────────────────────────
+
+function ProductsSection({ token }: { token: string }) {
+  const [products, setProducts] = useState<DynamicProduct[]>([]);
+  const [form, setForm] = useState({ title: "", titleAr: "", slug: "", price: "", salePrice: "" });
+  const [saving, setSaving] = useState(false);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingProductId = useRef<string | null>(null);
+
+  const load = useCallback(async () => {
+    const data = await api.getDynamicProducts().catch(() => [] as DynamicProduct[]);
+    setProducts(data);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const slugify = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+  const addProduct = async () => {
+    const price = Number(form.price);
+    const salePrice = form.salePrice.trim() ? Number(form.salePrice) : undefined;
+    if (!form.title.trim() || !form.titleAr.trim() || !form.slug.trim() || isNaN(price) || price <= 0) return;
+    setSaving(true);
+    try {
+      await api.createProduct(token, {
+        title: form.title.trim(),
+        titleAr: form.titleAr.trim(),
+        slug: slugify(form.slug),
+        price,
+        salePrice: salePrice && salePrice > 0 ? salePrice : undefined,
+      });
+      setForm({ title: "", titleAr: "", slug: "", price: "", salePrice: "" });
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!window.confirm("حذف المنتج؟ لن يمكن التراجع.")) return;
+    await api.deleteProduct(token, id);
+    setProducts((p) => p.filter((x) => x.id !== id));
+  };
+
+  const openImagePicker = (id: string) => {
+    pendingProductId.current = id;
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const id = pendingProductId.current;
+    if (!file || !id) return;
+    e.target.value = "";
+    setUploadingFor(id);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string;
+      await api.addProductImage(token, id, base64).catch(() => {});
+      await load();
+      setUploadingFor(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = async (id: string, idx: number) => {
+    await api.removeProductImage(token, id, idx);
+    setProducts((prev) => prev.map((p) => p.id === id
+      ? { ...p, images: p.images.filter((_, i) => i !== idx) }
+      : p
+    ));
+  };
+
+  return (
+    <div className="space-y-8">
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+
+      {/* Add product form */}
+      <section>
+        <h3 className="font-display text-xl mb-4">إضافة منتج جديد</h3>
+        <div className="lux-card p-5 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">الاسم (إنجليزي)</label>
+              <input
+                className="lux-input"
+                placeholder="Electric Brush"
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value, slug: slugify(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">الاسم (عربي)</label>
+              <input
+                className="lux-input"
+                placeholder="فرشاة كهربائية"
+                value={form.titleAr}
+                onChange={(e) => setForm((f) => ({ ...f, titleAr: e.target.value }))}
+                dir="rtl"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">الـ Slug (رابط المنتج)</label>
+              <input
+                className="lux-input"
+                placeholder="electric-brush"
+                value={form.slug}
+                onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
+                dir="ltr"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
+                <input className="lux-input" type="number" min={0} placeholder="500" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
+                <input className="lux-input" type="number" min={0} placeholder="450" value={form.salePrice} onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={addProduct}
+            disabled={saving || !form.title || !form.titleAr || !form.slug || !form.price}
+            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "جاري الإضافة..." : "+ إضافة المنتج"}
+          </button>
+        </div>
+      </section>
+
+      {/* Products list */}
+      <section>
+        <h3 className="font-display text-xl mb-4">المنتجات المضافة ({products.length})</h3>
+        {products.length === 0 ? (
+          <p className="text-center py-12 text-muted-foreground text-sm">لا توجد منتجات مضافة بعد</p>
+        ) : (
+          <div className="space-y-4">
+            {products.map((p) => (
+              <div key={p.id} className="lux-card p-5">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="font-display text-lg" dir="ltr">{p.title}</p>
+                    <p className="text-sm text-muted-foreground">{p.titleAr}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
+                    <div className="flex items-center gap-3 mt-1 text-sm">
+                      <span className="font-medium text-ink">{p.price.toLocaleString("ar-EG")} ج.م</span>
+                      {p.salePrice && <span className="text-emerald-600">{p.salePrice.toLocaleString("ar-EG")} ج.م (خصم)</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteProduct(p.id)}
+                    className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    حذف
+                  </button>
+                </div>
+
+                {/* Images */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-muted-foreground">الصور ({p.images.length})</p>
+                    <button
+                      onClick={() => openImagePicker(p.id)}
+                      disabled={uploadingFor === p.id}
+                      className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50"
+                    >
+                      {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة"}
+                    </button>
+                  </div>
+                  {p.images.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">لا توجد صور بعد</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-3">
+                      {p.images.map((src, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
+                          <button
+                            onClick={() => removeImage(p.id, idx)}
+                            className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="حذف الصورة"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered">("orders");
+  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered" | "products">("orders");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
@@ -1549,6 +1750,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               { key: "analytics", label: "التحليلات"  },
               { key: "sales",     label: "المبيعات"   },
               { key: "delivered", label: "المُسلَّمة" },
+              { key: "products",  label: "المنتجات"   },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -1687,6 +1889,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
         {/* Delivered tab */}
         {tab === "delivered" && <DeliveredSection orders={orders} onDelete={handleDeleteOrder} />}
+
+        {/* Products tab */}
+        {tab === "products" && <ProductsSection token={token} />}
       </div>
     </div>
   );

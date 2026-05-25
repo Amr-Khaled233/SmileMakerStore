@@ -4,7 +4,7 @@ import type { DbData, FreeShippingWindow } from "./types.js";
 type DbDataRaw = Omit<DbData, "freeShipping"> & { freeShipping?: FreeShippingWindow };
 
 const EMPTY_PRICING = { products: [], bundles: [], promoCodes: [] };
-const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null };
+const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null, dynamicProducts: [] };
 
 let _client: MongoClient | null = null;
 let _db: Db | null = null;
@@ -26,6 +26,7 @@ export async function readDb(): Promise<DbData> {
   if (!doc) return { ...DEFAULT };
   const data = doc as DbDataRaw;
   if (!data.pricing) data.pricing = { ...EMPTY_PRICING };
+  if (!data.dynamicProducts) data.dynamicProducts = [];
   return { ...data, freeShipping: data.freeShipping ?? null };
 }
 

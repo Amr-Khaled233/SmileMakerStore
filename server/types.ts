@@ -62,9 +62,21 @@ export type FreeShippingWindow = {
   to: string;
 } | null;
 
+export type DynamicProduct = {
+  id: string;
+  slug: string;
+  title: string;
+  titleAr: string;
+  price: number;
+  salePrice?: number;
+  images: string[]; // base64 data URLs
+  outOfStock?: boolean;
+};
+
 export type DbData = {
   orders: Order[];
   inventory: InventoryEntry[];
   pricing: Pricing;
   freeShipping: FreeShippingWindow;
+  dynamicProducts: DynamicProduct[];
 };

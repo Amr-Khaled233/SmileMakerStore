@@ -4,7 +4,7 @@ import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap, Chev
 import logo from "@/assets/smile-maker-logo.png";
 import hero from "@/assets/hero-smile.jpg";
 import flosser from "@/assets/h2o-flosser-1.jpeg";
-import ortho from "@/assets/ortho-kit-1.jpeg";
+import ortho from "@/assets/ortho-kit-2.jpeg";
 import { useT, type L } from "@/lib/i18n";
 import { formatEGP } from "@/data/products";
 import { useEffect, useRef, useState, useCallback } from "react";

@@ -1,6 +1,6 @@
-import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry } from "../../server/types.js";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct } from "../../server/types.js";
 
-export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry };
+export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct };
 
 export type PublicInventoryStatus = {
   outOfStock: string[];
@@ -97,6 +97,22 @@ export const api = {
     shippingFee?: number;
   }) =>
     req<{ success: boolean }>("PATCH", `/orders/${id}`, patch, token),
+
+  // Dynamic products (public)
+  getDynamicProducts: () =>
+    req<DynamicProduct[]>("GET", "/products"),
+
+  // Dynamic products (manager)
+  createProduct: (token: string, data: { title: string; titleAr: string; slug: string; price: number; salePrice?: number }) =>
+    req<{ success: boolean; product: DynamicProduct }>("POST", "/products", data, token),
+  deleteProduct: (token: string, id: string) =>
+    req<{ success: boolean }>("DELETE", `/products/${id}`, undefined, token),
+  updateProduct: (token: string, id: string, patch: { outOfStock?: boolean; price?: number; salePrice?: number }) =>
+    req<{ success: boolean }>("PATCH", `/products/${id}`, patch, token),
+  addProductImage: (token: string, id: string, image: string) =>
+    req<{ success: boolean }>("POST", `/products/${id}/images`, { image }, token),
+  removeProductImage: (token: string, id: string, idx: number) =>
+    req<{ success: boolean }>("DELETE", `/products/${id}/images/${idx}`, undefined, token),
 
   // Free shipping window (public)
   getFreeShippingStatus: () =>

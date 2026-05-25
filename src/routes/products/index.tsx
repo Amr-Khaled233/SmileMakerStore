@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { ArrowRight, Star, Sparkles, Tag } from "lucide-react";
+import { ArrowRight, Star, Sparkles } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { api, type Pricing } from "@/lib/api";
+import { api, type Pricing, type DynamicProduct } from "@/lib/api";
 
 export const Route = createFileRoute("/products/")({
   component: ProductsPage,
@@ -13,7 +13,9 @@ export const Route = createFileRoute("/products/")({
 function ProductsPage() {
   const { t, tl, lang } = useT();
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
+  const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
+  useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
 
   const products = PRODUCTS.map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
@@ -76,6 +78,40 @@ function ProductsPage() {
               </Link>
             );
           })}
+
+          {/* Dynamic products added from dashboard */}
+          {dynamicProducts.map((p) => (
+            <Link
+              key={p.id}
+              to="/order"
+              className="lux-card overflow-hidden group block"
+            >
+              <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+                {p.images[0] ? (
+                  <img src={p.images[0]} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                ) : (
+                  <div className="w-full h-full bg-soft flex items-center justify-center text-muted-foreground text-sm">لا توجد صورة</div>
+                )}
+                {p.outOfStock && (
+                  <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                    <span className="text-sm font-medium text-muted-foreground">نفد من المخزون</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-7">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xl font-display">{lang === "ar" ? p.titleAr : p.title}</h3>
+                  <div className="flex items-end gap-2 whitespace-nowrap">
+                    <span className="text-xl price-tag text-gradient">{formatEGP(p.salePrice ?? p.price, lang)}</span>
+                    {p.salePrice && <span className="text-xs text-muted-foreground line-through">{formatEGP(p.price, lang)}</span>}
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <span className="text-deep-blue text-sm inline-flex items-center gap-1">{t("btn.shopNow")} <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" /></span>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 

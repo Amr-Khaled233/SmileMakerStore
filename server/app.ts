@@ -5,6 +5,7 @@ import ordersRouter from "./routes/orders.js";
 import inventoryRouter from "./routes/inventory.js";
 import pricingRouter from "./routes/pricing.js";
 import settingsRouter from "./routes/settings.js";
+import productsRouter from "./routes/products.js";
 
 const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
   .split(",")
@@ -25,12 +26,13 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 app.use("/api/auth", authRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/inventory", inventoryRouter);
 app.use("/api/pricing", pricingRouter);
 app.use("/api/settings", settingsRouter);
+app.use("/api/products", productsRouter);
 
 export default app;
