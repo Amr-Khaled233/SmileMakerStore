@@ -15,7 +15,26 @@ import {
   Truck,
   Pencil,
   Tag,
+  Bell,
 } from "lucide-react";
+
+function playNotificationSound() {
+  try {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    [880, 1100].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.connect(gain);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.35);
+      osc.start(ctx.currentTime + i * 0.15);
+      osc.stop(ctx.currentTime + i * 0.15 + 0.35);
+    });
+  } catch { /* AudioContext unavailable */ }
+}
 
 type OrderStatus = "pending" | "dispatched" | "delivered";
 
@@ -1406,23 +1425,22 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
-  const [newOrdersBanner, setNewOrdersBanner] = useState<Order[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const seenIdsRef = useRef<Set<string> | null>(null);
 
   const loadOrders = useCallback(async (isPoll = false) => {
     try {
       const data = await api.getOrders(token);
       if (!isPoll) {
-        // First load — mark all current orders as already seen
         seenIdsRef.current = new Set(data.map((o) => o.id));
         setOrders(data);
       } else {
-        // Polling — find any IDs we haven't seen yet
         const seen = seenIdsRef.current!;
         const fresh = data.filter((o) => !seen.has(o.id));
         if (fresh.length > 0) {
           fresh.forEach((o) => seen.add(o.id));
-          setNewOrdersBanner((prev) => [...fresh, ...prev]);
+          setUnreadCount((c) => c + fresh.length);
+          playNotificationSound();
         }
         setOrders(data);
       }
@@ -1537,46 +1555,36 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
             </div>
             <span className="font-display text-lg text-ink">Smile Maker · Dashboard</span>
           </div>
-          <button
-            onClick={() => {
-              if (window.confirm("هل تريد تسجيل الخروج؟")) {
-                clearToken();
-                onLogout();
-              }
-            }}
-            className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-600 bg-white hover:bg-red-50 px-3 py-2 text-sm font-medium transition-all"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            تسجيل خروج
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Notification bell */}
+            <button
+              onClick={() => { setUnreadCount(0); setTab("orders"); }}
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white hover:bg-soft transition-colors"
+              aria-label="إشعارات الأوردرات الجديدة"
+            >
+              <Bell className={`h-4 w-4 ${unreadCount > 0 ? "text-emerald-600" : "text-muted-foreground"}`} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                if (window.confirm("هل تريد تسجيل الخروج؟")) {
+                  clearToken();
+                  onLogout();
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-600 bg-white hover:bg-red-50 px-3 py-2 text-sm font-medium transition-all"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              تسجيل خروج
+            </button>
+          </div>
         </div>
       </header>
-
-      {/* New order notifications */}
-      {newOrdersBanner.length > 0 && (
-        <div className="sticky top-16 z-40 bg-emerald-600 text-white px-4 py-3 flex items-center justify-between gap-4 shadow-md">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold">
-              {newOrdersBanner.length}
-            </span>
-            <div className="min-w-0">
-              <p className="font-semibold text-sm leading-tight">
-                {newOrdersBanner.length === 1 ? "أوردر جديد!" : `${newOrdersBanner.length} أوردرات جديدة!`}
-              </p>
-              <p className="text-xs text-white/80 truncate">
-                {newOrdersBanner[0].name} — {formatEGP(newOrdersBanner[0].total)} EGP
-                {newOrdersBanner.length > 1 && ` و${newOrdersBanner.length - 1} آخرين`}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => { setNewOrdersBanner([]); setTab("orders"); }}
-            className="shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-medium transition-colors"
-          >
-            عرض
-          </button>
-        </div>
-      )}
 
       <div className="container-lux py-8 space-y-8">
         {/* Stats */}
