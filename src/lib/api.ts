@@ -93,6 +93,7 @@ export const api = {
     subtotal?: number;
     bundleDiscount?: number;
     promoDiscount?: number;
+    shippingFee?: number;
   }) =>
     req<{ success: boolean }>("PATCH", `/orders/${id}`, patch, token),
 

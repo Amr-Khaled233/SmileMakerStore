@@ -142,6 +142,7 @@ function OrderCard({
     subtotal?: number;
     bundleDiscount?: number;
     promoDiscount?: number;
+    shippingFee?: number;
   }) => Promise<void>;
   isDragging?: boolean;
 }) {
@@ -150,6 +151,9 @@ function OrderCard({
   const [editMode, setEditMode] = useState(false);
   const [editTotal, setEditTotal] = useState(String(order.total));
   const [editNotes, setEditNotes] = useState(order.notes ?? "");
+  const [editBundleDiscount, setEditBundleDiscount] = useState(String(order.bundleDiscount ?? 0));
+  const [editPromoDiscount, setEditPromoDiscount] = useState(String(order.promoDiscount ?? 0));
+  const [editShipping, setEditShipping] = useState(String(order.shippingFee ?? 0));
   const [editSaving, setEditSaving] = useState(false);
   const [editItems, setEditItems] = useState<Array<OrderItem & { unitPrice: number }>>([]);
   const computedSubtotal = editItems.reduce((s, item) => s + item.lineTotal, 0);
@@ -177,6 +181,9 @@ function OrderCard({
   const openEdit = () => {
     setEditTotal(String(order.total));
     setEditNotes(order.notes ?? "");
+    setEditBundleDiscount(String(order.bundleDiscount ?? 0));
+    setEditPromoDiscount(String(order.promoDiscount ?? 0));
+    setEditShipping(String(order.shippingFee ?? 0));
     setEditItems(order.items.map((item) => ({
       ...item,
       unitPrice: item.qty > 0 ? item.lineTotal / item.qty : 0,
@@ -200,9 +207,11 @@ function OrderCard({
   useEffect(() => {
     if (!editMode) return;
     const subtotal = editItems.reduce((s, item) => s + item.lineTotal, 0);
-    const total = Math.max(0, subtotal - (order.bundleDiscount ?? 0) - (order.promoDiscount ?? 0) + order.shippingFee);
-    setEditTotal(String(Math.round(total)));
-  }, [editItems, editMode, order.bundleDiscount, order.promoDiscount, order.shippingFee]);
+    const bd = Number(editBundleDiscount) || 0;
+    const pd = Number(editPromoDiscount) || 0;
+    const sf = Number(editShipping) || 0;
+    setEditTotal(String(Math.max(0, Math.round(subtotal - bd - pd + sf))));
+  }, [editItems, editMode, editBundleDiscount, editPromoDiscount, editShipping]);
 
   const saveEdit = async () => {
     const total = Number(editTotal);
@@ -212,8 +221,9 @@ function OrderCard({
     await onEdit(order.id, {
       items: itemsToSave,
       subtotal: computedSubtotal,
-      bundleDiscount: order.bundleDiscount,
-      promoDiscount: order.promoDiscount,
+      bundleDiscount: Math.max(0, Number(editBundleDiscount) || 0),
+      promoDiscount: Math.max(0, Number(editPromoDiscount) || 0),
+      shippingFee: Math.max(0, Number(editShipping) || 0),
       total,
       notes: editNotes,
     });
@@ -327,38 +337,44 @@ function OrderCard({
       {/* Inline edit form */}
       {editMode && (
         <div className="mt-3 border-t border-border pt-3 space-y-2">
-          {/* Summary */}
-          <div className="text-[11px] text-muted-foreground space-y-1 bg-soft rounded-lg px-3 py-2">
-            <div className="flex justify-between">
-              <span>الإجمالي الفرعي</span>
-              <span className="price-tag text-ink">{formatEGP(computedSubtotal)}</span>
+          {/* Summary — all fields editable */}
+          <div className="text-xs space-y-1.5 bg-soft rounded-xl px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">الإجمالي الفرعي</span>
+              <span className="price-tag text-ink text-xs">{formatEGP(computedSubtotal)}</span>
             </div>
-            {order.bundleDiscount > 0 && (
-              <div className="flex justify-between text-deep-blue">
-                <span>خصم الباقة</span>
-                <span>−{formatEGP(order.bundleDiscount)}</span>
-              </div>
-            )}
-            {order.promoDiscount > 0 && (
-              <div className="flex justify-between text-deep-blue">
-                <span>كود الخصم</span>
-                <span>−{formatEGP(order.promoDiscount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span>الشحن</span>
-              <span>{formatEGP(order.shippingFee)}</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">خصم الباقة −</span>
+              <input
+                type="number" min={0} value={editBundleDiscount}
+                onChange={(e) => setEditBundleDiscount(e.target.value)}
+                className="w-24 text-end text-xs border border-border rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-turquoise"
+              />
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground shrink-0">الإجمالي (جنيه):</label>
-            <input
-              type="number"
-              min={0}
-              value={editTotal}
-              onChange={(e) => setEditTotal(e.target.value)}
-              className="flex-1 lux-input text-sm py-1.5"
-            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">خصم الكود −</span>
+              <input
+                type="number" min={0} value={editPromoDiscount}
+                onChange={(e) => setEditPromoDiscount(e.target.value)}
+                className="w-24 text-end text-xs border border-border rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-turquoise"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">الشحن</span>
+              <input
+                type="number" min={0} value={editShipping}
+                onChange={(e) => setEditShipping(e.target.value)}
+                className="w-24 text-end text-xs border border-border rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-turquoise"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/60">
+              <span className="text-ink font-medium shrink-0">الإجمالي</span>
+              <input
+                type="number" min={0} value={editTotal}
+                onChange={(e) => setEditTotal(e.target.value)}
+                className="w-24 text-end text-sm font-semibold border border-deep-blue/40 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-deep-blue"
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs text-muted-foreground">ملاحظات:</label>
@@ -1002,6 +1018,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     subtotal?: number;
     bundleDiscount?: number;
     promoDiscount?: number;
+    shippingFee?: number;
   }) => {
     await api.editOrder(token, id, patch);
     setOrders((prev) =>
@@ -1015,6 +1032,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               ...(patch.subtotal !== undefined ? { subtotal: patch.subtotal } : {}),
               ...(patch.bundleDiscount !== undefined ? { bundleDiscount: patch.bundleDiscount } : {}),
               ...(patch.promoDiscount !== undefined ? { promoDiscount: patch.promoDiscount } : {}),
+              ...(patch.shippingFee !== undefined ? { shippingFee: patch.shippingFee } : {}),
             }
           : o
       )

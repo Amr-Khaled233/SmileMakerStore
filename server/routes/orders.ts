@@ -64,6 +64,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     subtotal?: number;
     bundleDiscount?: number;
     promoDiscount?: number;
+    shippingFee?: number;
   };
   const db = await readDb();
   const order = db.orders.find((o) => o.id === req.params.id);
@@ -93,6 +94,11 @@ router.patch("/:id", requireAuth, async (req, res) => {
     if (body.bundleDiscount !== undefined) order.bundleDiscount = body.bundleDiscount;
     if (body.promoDiscount !== undefined) order.promoDiscount = body.promoDiscount;
     changed = true;
+  }
+
+  if (body.shippingFee !== undefined) {
+    const sf = Number(body.shippingFee);
+    if (!isNaN(sf) && sf >= 0) { order.shippingFee = sf; changed = true; }
   }
 
   if (body.total !== undefined) {
