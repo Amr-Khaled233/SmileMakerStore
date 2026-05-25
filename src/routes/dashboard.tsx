@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   Clock,
   CheckCircle2,
@@ -1406,14 +1406,27 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
+  const [newOrdersBanner, setNewOrdersBanner] = useState<Order[]>([]);
+  const seenIdsRef = useRef<Set<string> | null>(null);
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (isPoll = false) => {
     try {
       const data = await api.getOrders(token);
-      setOrders(data);
+      if (!isPoll) {
+        // First load — mark all current orders as already seen
+        seenIdsRef.current = new Set(data.map((o) => o.id));
+        setOrders(data);
+      } else {
+        // Polling — find any IDs we haven't seen yet
+        const seen = seenIdsRef.current!;
+        const fresh = data.filter((o) => !seen.has(o.id));
+        if (fresh.length > 0) {
+          fresh.forEach((o) => seen.add(o.id));
+          setNewOrdersBanner((prev) => [...fresh, ...prev]);
+        }
+        setOrders(data);
+      }
     } catch (err) {
-      // Only force logout if the server explicitly rejected the auth token.
-      // Network errors or server errors should not clear a valid session.
       const msg = String(err);
       if (msg.includes("Unauthorized") || msg.includes("Invalid token")) {
         clearToken();
@@ -1424,7 +1437,13 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     }
   }, [token, onLogout]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => { loadOrders(false); }, [loadOrders]);
+
+  // Poll every 30 seconds for new orders
+  useEffect(() => {
+    const id = setInterval(() => loadOrders(true), 30_000);
+    return () => clearInterval(id);
+  }, [loadOrders]);
 
   const handleStatusChange = async (id: string, status: OrderStatus) => {
     await api.updateOrderStatus(token, id, status);
@@ -1532,6 +1551,32 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
           </button>
         </div>
       </header>
+
+      {/* New order notifications */}
+      {newOrdersBanner.length > 0 && (
+        <div className="sticky top-16 z-40 bg-emerald-600 text-white px-4 py-3 flex items-center justify-between gap-4 shadow-md">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold">
+              {newOrdersBanner.length}
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm leading-tight">
+                {newOrdersBanner.length === 1 ? "أوردر جديد!" : `${newOrdersBanner.length} أوردرات جديدة!`}
+              </p>
+              <p className="text-xs text-white/80 truncate">
+                {newOrdersBanner[0].name} — {formatEGP(newOrdersBanner[0].total)} EGP
+                {newOrdersBanner.length > 1 && ` و${newOrdersBanner.length - 1} آخرين`}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setNewOrdersBanner([]); setTab("orders"); }}
+            className="shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            عرض
+          </button>
+        </div>
+      )}
 
       <div className="container-lux py-8 space-y-8">
         {/* Stats */}
