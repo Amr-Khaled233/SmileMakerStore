@@ -982,37 +982,12 @@ const CHART_GRADIENTS = [
   "from-pink-400 to-rose-500",
 ];
 
-function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id: string) => Promise<void> }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deliveredSearch, setDeliveredSearch] = useState("");
-
+function AnalyticsSection({ orders }: { orders: Order[] }) {
   const deliveredOrders = useMemo(
-    () => [...orders].filter((o) => o.status === "delivered").sort((a, b) => b.createdAt - a.createdAt),
+    () => orders.filter((o) => o.status === "delivered"),
     [orders]
   );
 
-  const filteredDelivered = useMemo(() => {
-    const q = deliveredSearch.trim();
-    if (!q) return deliveredOrders;
-    return deliveredOrders.filter(
-      (o) =>
-        o.phone.includes(q) ||
-        o.name.includes(q) ||
-        o.id.toLowerCase().includes(q.toLowerCase()) ||
-        o.city.includes(q)
-    );
-  }, [deliveredOrders, deliveredSearch]);
-
-  const handleDeleteDelivered = async (id: string) => {
-    if (!window.confirm("حذف الأوردر؟ سيتم إرجاع الكميات للمخزون تلقائياً.")) return;
-    setDeletingId(id);
-    await onDelete(id);
-    setDeletingId(null);
-    if (expandedId === id) setExpandedId(null);
-  };
-
-  // Aggregate demand from ALL orders (shows true market pressure)
   const productStats = useMemo(() => {
     const map = new Map<string, { title: string; units: number; revenue: number }>();
     for (const order of orders) {
@@ -1024,7 +999,6 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
     return [...map.values()].sort((a, b) => b.units - a.units);
   }, [orders]);
 
-  // City distribution — sorted by revenue
   const cityStats = useMemo(() => {
     const map = new Map<string, { orders: number; revenue: number }>();
     for (const o of orders) {
@@ -1037,22 +1011,8 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
       .slice(0, 8);
   }, [orders]);
 
-  // Monthly sales — newest first
-  const monthlyStats = useMemo(() => {
-    const map = new Map<string, { label: string; orders: number; revenue: number }>();
-    for (const o of orders) {
-      const d = new Date(o.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
-      const ex = map.get(key) ?? { label, orders: 0, revenue: 0 };
-      map.set(key, { label, orders: ex.orders + 1, revenue: ex.revenue + o.total });
-    }
-    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v);
-  }, [orders]);
-
   const maxUnits = productStats[0]?.units ?? 1;
   const maxCityRevenue = cityStats[0]?.revenue ?? 1;
-  const maxMonthRevenue = monthlyStats[0]?.revenue ?? 1;
   const deliveredRevenue = deliveredOrders.reduce((s, o) => s + o.total, 0);
   const avgOrder = deliveredOrders.length > 0 ? Math.round(deliveredRevenue / deliveredOrders.length) : 0;
 
@@ -1060,44 +1020,11 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
     <div className="space-y-6">
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="أوردرات مُسلَّمة"   value={deliveredOrders.length}                          icon={CheckCircle2} />
-        <StatCard label="إيرادات مؤكدة"     value={deliveredOrders.length ? formatEGP(deliveredRevenue) : "—"} icon={TrendingUp} accent />
-        <StatCard label="متوسط الأوردر"     value={avgOrder ? formatEGP(avgOrder) : "—"}              icon={Tag} />
-        <StatCard label="أكثر مدينة طلباً"  value={cityStats[0]?.city ?? "—"} sub={cityStats[0] ? `${cityStats[0].orders} أوردر` : undefined} icon={Package} />
+        <StatCard label="أوردرات مُسلَّمة"  value={deliveredOrders.length} icon={CheckCircle2} />
+        <StatCard label="إيرادات مؤكدة"    value={deliveredOrders.length ? formatEGP(deliveredRevenue) : "—"} icon={TrendingUp} accent />
+        <StatCard label="متوسط الأوردر"    value={avgOrder ? formatEGP(avgOrder) : "—"} icon={Tag} />
+        <StatCard label="أكثر مدينة طلباً" value={cityStats[0]?.city ?? "—"} sub={cityStats[0] ? `${cityStats[0].orders} أوردر` : undefined} icon={Package} />
       </div>
-
-      {/* Monthly sales chart */}
-      {monthlyStats.length > 0 && (
-        <div className="lux-card p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-5 w-5 text-deep-blue" />
-            <h3 className="font-display text-xl">المبيعات الشهرية</h3>
-          </div>
-          <p className="text-xs text-muted-foreground mb-5">إيرادات وعدد الأوردرات لكل شهر</p>
-          <div className="space-y-4">
-            {monthlyStats.map((m, i) => (
-              <div key={m.label}>
-                <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-bold text-muted-foreground w-6 shrink-0 text-center">#{i + 1}</span>
-                    <span className="text-sm font-medium text-ink">{m.label}</span>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0 text-xs">
-                    <span className="font-semibold text-ink">{formatEGP(m.revenue)}</span>
-                    <span className="text-muted-foreground">{m.orders} أوردر</span>
-                  </div>
-                </div>
-                <div className="h-2.5 rounded-full bg-soft overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
-                    style={{ width: `${Math.max(4, Math.round((m.revenue / maxMonthRevenue) * 100))}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Product demand chart */}
       <div className="lux-card p-5 sm:p-6">
@@ -1105,9 +1032,7 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
           <TrendingUp className="h-5 w-5 text-deep-blue" />
           <h3 className="font-display text-xl">أكثر المنتجات طلباً</h3>
         </div>
-        <p className="text-xs text-muted-foreground mb-5">
-          من جميع الأوردرات — قيد الانتظار + الشحن + المُسلَّمة
-        </p>
+        <p className="text-xs text-muted-foreground mb-5">من جميع الأوردرات — قيد الانتظار + الشحن + المُسلَّمة</p>
         {productStats.length === 0 ? (
           <p className="text-center py-10 text-sm text-muted-foreground">لا يوجد أوردرات بعد</p>
         ) : (
@@ -1136,7 +1061,7 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
         )}
       </div>
 
-      {/* City distribution — sorted by revenue */}
+      {/* City distribution */}
       {cityStats.length > 0 && (
         <div className="lux-card p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-1">
@@ -1169,8 +1094,190 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Delivered orders list */}
+// ─── Sales Section ────────────────────────────────────────────────────────────
+
+function SalesSection({ orders }: { orders: Order[] }) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const monthlyStats = useMemo(() => {
+    const map = new Map<string, { label: string; count: number; revenue: number; list: Order[] }>();
+    for (const o of orders) {
+      const d = new Date(o.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
+      const ex = map.get(key) ?? { label, count: 0, revenue: 0, list: [] };
+      map.set(key, { label, count: ex.count + 1, revenue: ex.revenue + o.total, list: [...ex.list, o] });
+    }
+    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, v]) => ({ key, ...v }));
+  }, [orders]);
+
+  useEffect(() => {
+    if (monthlyStats.length > 0 && !selectedKey) setSelectedKey(monthlyStats[0].key);
+  }, [monthlyStats, selectedKey]);
+
+  const selectedMonth = monthlyStats.find((m) => m.key === selectedKey) ?? null;
+  const maxRevenue = monthlyStats[0]?.revenue ?? 1;
+
+  const productBreakdown = useMemo(() => {
+    if (!selectedMonth) return [];
+    const map = new Map<string, { title: string; units: number; revenue: number }>();
+    for (const o of selectedMonth.list) {
+      for (const item of o.items ?? []) {
+        const ex = map.get(item.slug) ?? { title: item.title, units: 0, revenue: 0 };
+        map.set(item.slug, { title: item.title, units: ex.units + item.qty, revenue: ex.revenue + item.lineTotal });
+      }
+    }
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+  }, [selectedMonth]);
+
+  const maxProductRevenue = productBreakdown[0]?.revenue ?? 1;
+
+  if (orders.length === 0) {
+    return <p className="text-center py-16 text-muted-foreground">لا يوجد أوردرات بعد</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Monthly overview — clickable rows */}
+      <div className="lux-card p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <TrendingUp className="h-5 w-5 text-deep-blue" />
+          <h3 className="font-display text-xl">المبيعات الشهرية</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">اضغط على شهر لعرض تفاصيل منتجاته</p>
+        <div className="space-y-2">
+          {monthlyStats.map((m, i) => {
+            const isSelected = selectedKey === m.key;
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setSelectedKey(m.key)}
+                className={`w-full text-start rounded-xl px-3 py-2.5 transition-all ${
+                  isSelected
+                    ? "bg-deep-blue/8 ring-2 ring-deep-blue/25"
+                    : "hover:bg-soft"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-muted-foreground w-6 text-center">#{i + 1}</span>
+                    <span className={`text-sm font-semibold ${isSelected ? "text-deep-blue" : "text-ink"}`}>{m.label}</span>
+                    {isSelected && (
+                      <span className="text-[10px] bg-deep-blue text-white rounded-full px-2 py-0.5 font-medium">محدد</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <span className={`font-bold ${isSelected ? "text-deep-blue" : "text-ink"}`}>{formatEGP(m.revenue)}</span>
+                    <span className="text-muted-foreground">{m.count} أوردر</span>
+                  </div>
+                </div>
+                <div className="h-3 rounded-full bg-soft overflow-hidden">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r transition-all ${
+                      isSelected
+                        ? "from-deep-blue to-turquoise"
+                        : CHART_GRADIENTS[i % CHART_GRADIENTS.length]
+                    }`}
+                    style={{ width: `${Math.max(4, Math.round((m.revenue / maxRevenue) * 100))}%` }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Product breakdown for selected month */}
+      {selectedMonth && (
+        <div className="lux-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Package className="h-5 w-5 text-deep-blue" />
+            <h3 className="font-display text-xl">تفاصيل {selectedMonth.label}</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-5">
+            {selectedMonth.count} أوردر · إجمالي {formatEGP(selectedMonth.revenue)}
+          </p>
+          {productBreakdown.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">لا توجد بيانات منتجات لهذا الشهر</p>
+          ) : (
+            <div className="space-y-4">
+              {productBreakdown.map((p, i) => (
+                <div key={p.title}>
+                  <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-muted-foreground w-6 shrink-0 text-center">#{i + 1}</span>
+                      <span className="text-sm font-medium text-ink truncate" dir="ltr">{p.title}</span>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 text-xs">
+                      <span className="font-semibold text-ink">{formatEGP(p.revenue)}</span>
+                      <span className="text-muted-foreground">{p.units} وحدة</span>
+                    </div>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-soft overflow-hidden">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                      style={{ width: `${Math.max(4, Math.round((p.revenue / maxProductRevenue) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Delivered Section ────────────────────────────────────────────────────────
+
+function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDelete: (id: string) => Promise<void> }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deliveredSearch, setDeliveredSearch] = useState("");
+
+  const deliveredOrders = useMemo(
+    () => [...orders].filter((o) => o.status === "delivered").sort((a, b) => b.createdAt - a.createdAt),
+    [orders]
+  );
+
+  const filteredDelivered = useMemo(() => {
+    const q = deliveredSearch.trim();
+    if (!q) return deliveredOrders;
+    return deliveredOrders.filter(
+      (o) =>
+        o.phone.includes(q) ||
+        o.name.includes(q) ||
+        o.id.toLowerCase().includes(q.toLowerCase()) ||
+        o.city.includes(q)
+    );
+  }, [deliveredOrders, deliveredSearch]);
+
+  const handleDeleteDelivered = async (id: string) => {
+    if (!window.confirm("حذف الأوردر؟ سيتم إرجاع الكميات للمخزون تلقائياً.")) return;
+    setDeletingId(id);
+    await onDelete(id);
+    setDeletingId(null);
+    if (expandedId === id) setExpandedId(null);
+  };
+
+  const deliveredRevenue = deliveredOrders.reduce((s, o) => s + o.total, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard label="عدد الأوردرات المُسلَّمة"   value={deliveredOrders.length}                                                   icon={CheckCircle2} />
+        <StatCard label="إجمالي الإيرادات المؤكدة"   value={deliveredOrders.length ? formatEGP(deliveredRevenue) : "—"}               icon={TrendingUp} accent />
+        <StatCard label="متوسط قيمة الأوردر"          value={deliveredOrders.length ? formatEGP(Math.round(deliveredRevenue / deliveredOrders.length)) : "—"} icon={Tag} />
+      </div>
+
+      {/* Search + list */}
       <div className="lux-card p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -1184,7 +1291,7 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
             <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <input
               type="search"
-              placeholder="ابحث برقم التليفون أو الاسم أو المدينة..."
+              placeholder="ابحث برقم التليفون أو الاسم أو المدينة أو ID..."
               value={deliveredSearch}
               onChange={(e) => setDeliveredSearch(e.target.value)}
               className="w-full rounded-xl border border-border bg-background pe-10 ps-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-deep-blue/30"
@@ -1204,7 +1311,6 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
               const isDeleting = deletingId === o.id;
               return (
                 <div key={o.id} className={`transition-colors ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}>
-                  {/* Row header — click to expand */}
                   <button
                     type="button"
                     onClick={() => setExpandedId(isExpanded ? null : o.id)}
@@ -1227,10 +1333,8 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
                     <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                   </button>
 
-                  {/* Expanded detail */}
                   {isExpanded && (
                     <div className="pb-4 px-2 space-y-3 text-sm">
-                      {/* Contact & address */}
                       <div className="bg-soft rounded-xl px-4 py-3 space-y-1 text-xs">
                         <p className="flex items-center gap-2">
                           <span className="text-muted-foreground">📞</span>
@@ -1247,19 +1351,15 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
                           </p>
                         )}
                       </div>
-
-                      {/* Items */}
                       <div className="space-y-1">
-                        {(o.items ?? []).map((it, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                        {(o.items ?? []).map((it, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2 text-xs">
                             <span className="text-ink truncate" dir="ltr">{it.title}</span>
                             <span className="text-muted-foreground shrink-0">×{it.qty}</span>
                             <span className="price-tag text-ink shrink-0">{formatEGP(it.lineTotal)}</span>
                           </div>
                         ))}
                       </div>
-
-                      {/* Totals */}
                       <div className="border-t border-dashed border-border pt-2 space-y-1 text-xs text-muted-foreground">
                         {o.subtotal > 0 && o.subtotal !== o.total && (
                           <div className="flex justify-between"><span>فرعي</span><span>{formatEGP(o.subtotal)}</span></div>
@@ -1276,17 +1376,13 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
                           <span className="price-tag text-gradient">{formatEGP(o.total)}</span>
                         </div>
                       </div>
-
-                      {/* Delete */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteDelivered(o.id); }}
                         disabled={isDeleting}
                         className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
                       >
-                        {isDeleting
-                          ? <RefreshCw className="h-3 w-3 animate-spin" />
-                          : <Trash2 className="h-3 w-3" />}
+                        {isDeleting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                         حذف الأوردر
                       </button>
                     </div>
@@ -1306,7 +1402,7 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics">("orders");
+  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered">("orders");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
@@ -1410,7 +1506,6 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
   const pendingOrders    = searched.filter((o) => o.status === "pending");
   const dispatchedOrders = searched.filter((o) => o.status === "dispatched");
-  const deliveredOrders  = searched.filter((o) => o.status === "delivered");
 
   return (
     <div className="min-h-screen bg-soft" dir="rtl">
@@ -1451,10 +1546,12 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         <div className="flex flex-wrap gap-1 bg-white border border-border rounded-2xl p-1 w-fit">
           {(
             [
-              { key: "orders",    label: "الأوردرات" },
-              { key: "inventory", label: "المخزون"   },
-              { key: "pricing",   label: "الأسعار"   },
-              { key: "analytics", label: "التحليلات" },
+              { key: "orders",    label: "الأوردرات"  },
+              { key: "inventory", label: "المخزون"    },
+              { key: "pricing",   label: "الأسعار"    },
+              { key: "analytics", label: "التحليلات"  },
+              { key: "sales",     label: "المبيعات"   },
+              { key: "delivered", label: "المُسلَّمة" },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -1586,7 +1683,13 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         {tab === "pricing" && <PricingSection token={token} />}
 
         {/* Analytics tab */}
-        {tab === "analytics" && <AnalyticsSection orders={orders} onDelete={handleDeleteOrder} />}
+        {tab === "analytics" && <AnalyticsSection orders={orders} />}
+
+        {/* Sales tab */}
+        {tab === "sales" && <SalesSection orders={orders} />}
+
+        {/* Delivered tab */}
+        {tab === "delivered" && <DeliveredSection orders={orders} onDelete={handleDeleteOrder} />}
       </div>
     </div>
   );
