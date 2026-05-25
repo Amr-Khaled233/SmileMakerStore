@@ -4,13 +4,22 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
+// Parse a datetime string as a UTC timestamp.
+// New data is stored as UTC ISO ("2026-05-25T00:58:00.000Z") → parses correctly.
+// Legacy data has no TZ ("2026-05-25T03:58") → treat as Egypt local time (UTC+3).
+function parseDateTime(str: string): number {
+  if (!str) return NaN;
+  if (str.includes("Z") || /[+-]\d{2}:\d{2}$/.test(str)) return new Date(str).getTime();
+  return new Date(str + "+03:00").getTime();
+}
+
 // Public — is free shipping currently active?
 router.get("/free-shipping/public", async (_req, res) => {
   const db = await readDb();
   const w = db.freeShipping;
   if (!w) { res.json({ active: false }); return; }
   const now = Date.now();
-  const active = new Date(w.from).getTime() <= now && now <= new Date(w.to).getTime();
+  const active = parseDateTime(w.from) <= now && now <= parseDateTime(w.to);
   res.json({ active });
 });
 

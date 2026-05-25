@@ -10,7 +10,7 @@ router.post("/login", (req, res) => {
     return;
   }
   const token = jwt.sign({ role: "manager" }, process.env.JWT_SECRET!, {
-    expiresIn: "7d",
+    expiresIn: "30d",
   });
   res.json({ token });
 });

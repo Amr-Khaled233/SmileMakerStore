@@ -970,9 +970,14 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     try {
       const data = await api.getOrders(token);
       setOrders(data);
-    } catch {
-      clearToken();
-      onLogout();
+    } catch (err) {
+      // Only force logout if the server explicitly rejected the auth token.
+      // Network errors or server errors should not clear a valid session.
+      const msg = String(err);
+      if (msg.includes("Unauthorized") || msg.includes("Invalid token")) {
+        clearToken();
+        onLogout();
+      }
     } finally {
       setLoading(false);
     }
@@ -1240,15 +1245,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 // ─── Root Page Component ──────────────────────────────────────────────────────
 
 function DashboardPage() {
-  const [token, setToken] = useState<string | null>(null);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    setToken(getToken());
-    setChecked(true);
-  }, []);
-
-  if (!checked) return null;
+  // Lazy initializer reads localStorage synchronously on first render — no flicker,
+  // no async gap where the login screen briefly appears before the token is found.
+  const [token, setToken] = useState<string | null>(() => getToken());
 
   if (!token) {
     return <LoginScreen onLogin={setToken} />;
