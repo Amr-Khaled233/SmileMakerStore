@@ -982,11 +982,22 @@ const CHART_GRADIENTS = [
   "from-pink-400 to-rose-500",
 ];
 
-function AnalyticsSection({ orders }: { orders: Order[] }) {
+function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id: string) => Promise<void> }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const deliveredOrders = useMemo(
     () => [...orders].filter((o) => o.status === "delivered").sort((a, b) => b.createdAt - a.createdAt),
     [orders]
   );
+
+  const handleDeleteDelivered = async (id: string) => {
+    if (!window.confirm("حذف الأوردر؟ سيتم إرجاع الكميات للمخزون تلقائياً.")) return;
+    setDeletingId(id);
+    await onDelete(id);
+    setDeletingId(null);
+    if (expandedId === id) setExpandedId(null);
+  };
 
   // Aggregate demand from ALL orders (shows true market pressure)
   const productStats = useMemo(() => {
@@ -1097,28 +1108,105 @@ function AnalyticsSection({ orders }: { orders: Order[] }) {
         </div>
         {deliveredOrders.length === 0 ? (
           <p className="text-center py-10 text-sm text-muted-foreground">
-            لا يوجد أوردرات مُسلَّمة بعد — اسحب أوردر لعمود "تم الاستلام" أو غيّر الحالة من داخله
+            لا يوجد أوردرات مُسلَّمة بعد — غيّر الحالة من داخل الأوردر لـ "تم الاستلام"
           </p>
         ) : (
           <div className="divide-y divide-border">
-            {deliveredOrders.map((o) => (
-              <div key={o.id} className="flex items-start gap-3 py-3 text-sm flex-wrap">
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-ink text-xs" dir="ltr">{o.id}</span>
-                    <span className="font-medium text-ink">{o.name}</span>
-                    <span className="text-xs text-muted-foreground">{o.city}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {(o.items ?? []).map((it) => `${it.title} ×${it.qty}`).join(" · ")}
-                  </p>
+            {deliveredOrders.map((o) => {
+              const isExpanded = expandedId === o.id;
+              const isDeleting = deletingId === o.id;
+              return (
+                <div key={o.id} className={`transition-colors ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}>
+                  {/* Row header — click to expand */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                    className="w-full text-start py-3 flex items-center gap-3 hover:bg-soft/50 rounded-lg px-2 -mx-2 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-ink text-xs" dir="ltr">{o.id}</span>
+                        <span className="font-medium text-ink text-sm">{o.name}</span>
+                        <span className="text-xs text-muted-foreground">{o.city}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {(o.items ?? []).map((it) => `${it.title} ×${it.qty}`).join(" · ")}
+                      </p>
+                    </div>
+                    <div className="text-end shrink-0 me-1">
+                      <p className="price-tag text-sm text-deep-blue">{formatEGP(o.total)}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("ar-EG")}</p>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <div className="pb-4 px-2 space-y-3 text-sm">
+                      {/* Contact & address */}
+                      <div className="bg-soft rounded-xl px-4 py-3 space-y-1 text-xs">
+                        <p className="flex items-center gap-2">
+                          <span className="text-muted-foreground">📞</span>
+                          <span dir="ltr" className="text-ink font-medium">{o.phone}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span className="text-muted-foreground">📍</span>
+                          <span className="text-ink">{o.city} — {o.address}</span>
+                        </p>
+                        {o.notes && (
+                          <p className="flex items-start gap-2">
+                            <span className="text-muted-foreground mt-0.5">📝</span>
+                            <span className="text-ink">{o.notes}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Items */}
+                      <div className="space-y-1">
+                        {(o.items ?? []).map((it, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-ink truncate" dir="ltr">{it.title}</span>
+                            <span className="text-muted-foreground shrink-0">×{it.qty}</span>
+                            <span className="price-tag text-ink shrink-0">{formatEGP(it.lineTotal)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Totals */}
+                      <div className="border-t border-dashed border-border pt-2 space-y-1 text-xs text-muted-foreground">
+                        {o.subtotal > 0 && o.subtotal !== o.total && (
+                          <div className="flex justify-between"><span>فرعي</span><span>{formatEGP(o.subtotal)}</span></div>
+                        )}
+                        {o.bundleDiscount > 0 && (
+                          <div className="flex justify-between text-deep-blue"><span>خصم الباقة</span><span>−{formatEGP(o.bundleDiscount)}</span></div>
+                        )}
+                        {o.promoDiscount > 0 && (
+                          <div className="flex justify-between text-deep-blue"><span>كود الخصم</span><span>−{formatEGP(o.promoDiscount)}</span></div>
+                        )}
+                        <div className="flex justify-between"><span>الشحن</span><span>{formatEGP(o.shippingFee)}</span></div>
+                        <div className="flex justify-between font-semibold text-ink text-sm pt-1 border-t border-border">
+                          <span>الإجمالي</span>
+                          <span className="price-tag text-gradient">{formatEGP(o.total)}</span>
+                        </div>
+                      </div>
+
+                      {/* Delete */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteDelivered(o.id); }}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {isDeleting
+                          ? <RefreshCw className="h-3 w-3 animate-spin" />
+                          : <Trash2 className="h-3 w-3" />}
+                        حذف الأوردر
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="text-end shrink-0">
-                  <p className="price-tag text-sm text-deep-blue">{formatEGP(o.total)}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("ar-EG")}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1411,7 +1499,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         {tab === "pricing" && <PricingSection token={token} />}
 
         {/* Analytics tab */}
-        {tab === "analytics" && <AnalyticsSection orders={orders} />}
+        {tab === "analytics" && <AnalyticsSection orders={orders} onDelete={handleDeleteOrder} />}
       </div>
     </div>
   );
