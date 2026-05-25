@@ -14,10 +14,12 @@ function ProductsPage() {
   const { t, tl, lang } = useT();
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
+  const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
+  useEffect(() => { api.getProductsMeta().then((m) => setHiddenSlugs(m.hidden)).catch(() => {}); }, []);
 
-  const products = PRODUCTS.map((p) => {
+  const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
     return {
       ...p,
@@ -83,7 +85,8 @@ function ProductsPage() {
           {dynamicProducts.map((p) => (
             <Link
               key={p.id}
-              to="/order"
+              to="/products/$slug"
+              params={{ slug: p.slug }}
               className="lux-card overflow-hidden group block"
             >
               <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
@@ -107,7 +110,7 @@ function ProductsPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <span className="text-deep-blue text-sm inline-flex items-center gap-1">{t("btn.shopNow")} <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" /></span>
+                  <span className="text-deep-blue text-sm inline-flex items-center gap-1">{t("btn.view")} <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" /></span>
                 </div>
               </div>
             </Link>

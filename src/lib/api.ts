@@ -101,18 +101,30 @@ export const api = {
   // Dynamic products (public)
   getDynamicProducts: () =>
     req<DynamicProduct[]>("GET", "/products"),
+  getProductsMeta: () =>
+    req<{ imageOverrides: Record<string, string[]>; hidden: string[] }>("GET", "/products/meta"),
 
   // Dynamic products (manager)
-  createProduct: (token: string, data: { title: string; titleAr: string; slug: string; price: number; salePrice?: number }) =>
+  createProduct: (token: string, data: Partial<DynamicProduct>) =>
     req<{ success: boolean; product: DynamicProduct }>("POST", "/products", data, token),
   deleteProduct: (token: string, id: string) =>
     req<{ success: boolean }>("DELETE", `/products/${id}`, undefined, token),
-  updateProduct: (token: string, id: string, patch: { outOfStock?: boolean; price?: number; salePrice?: number }) =>
+  updateProduct: (token: string, id: string, patch: Partial<DynamicProduct>) =>
     req<{ success: boolean }>("PATCH", `/products/${id}`, patch, token),
   addProductImage: (token: string, id: string, image: string) =>
     req<{ success: boolean }>("POST", `/products/${id}/images`, { image }, token),
   removeProductImage: (token: string, id: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/products/${id}/images/${idx}`, undefined, token),
+
+  // Static product image overrides (manager)
+  addStaticProductImage: (token: string, slug: string, image: string) =>
+    req<{ success: boolean }>("POST", `/products/static/${slug}/images`, { image }, token),
+  removeStaticProductImage: (token: string, slug: string, idx: number) =>
+    req<{ success: boolean }>("DELETE", `/products/static/${slug}/images/${idx}`, undefined, token),
+  clearStaticProductImages: (token: string, slug: string) =>
+    req<{ success: boolean }>("DELETE", `/products/static/${slug}/images`, undefined, token),
+  setProductVisibility: (token: string, slug: string, hidden: boolean) =>
+    req<{ success: boolean }>("PATCH", `/products/static/${slug}/visibility`, { hidden }, token),
 
   // Free shipping window (public)
   getFreeShippingStatus: () =>

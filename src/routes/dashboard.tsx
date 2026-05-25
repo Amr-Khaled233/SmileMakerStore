@@ -27,7 +27,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
 import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct } from "@/lib/api";
-import { PRODUCTS, BUNDLES, PROMO_CODES, formatEGP, effectivePrice } from "@/data/products";
+import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -40,7 +40,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -1400,22 +1400,43 @@ function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
 // ─── Products Management Section ─────────────────────────────────────────────
 
 function ProductsSection({ token }: { token: string }) {
+  const [subTab, setSubTab] = useState<"dynamic" | "static">("dynamic");
+
+  // Dynamic products
   const [products, setProducts] = useState<DynamicProduct[]>([]);
-  const [form, setForm] = useState({ title: "", titleAr: "", slug: "", price: "", salePrice: "" });
+  const [form, setForm] = useState({
+    title: "", titleAr: "", slug: "", price: "", salePrice: "",
+    description: "", descriptionAr: "",
+    features: [] as { en: string; ar: string }[],
+  });
   const [saving, setSaving] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingProductId = useRef<string | null>(null);
 
+  // Static products
+  const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
+  const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [staticUploadingFor, setStaticUploadingFor] = useState<string | null>(null);
+  const [togglingHidden, setTogglingHidden] = useState<string | null>(null);
+  const staticFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingStaticSlug = useRef<string | null>(null);
+
   const load = useCallback(async () => {
-    const data = await api.getDynamicProducts().catch(() => [] as DynamicProduct[]);
+    const [data, meta] = await Promise.all([
+      api.getDynamicProducts().catch(() => [] as DynamicProduct[]),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[] })),
+    ]);
     setProducts(data);
+    setImageOverrides(meta.imageOverrides);
+    setHiddenSlugs(meta.hidden);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const slugify = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
+  // ── Dynamic handlers ──
   const addProduct = async () => {
     const price = Number(form.price);
     const salePrice = form.salePrice.trim() ? Number(form.salePrice) : undefined;
@@ -1428,8 +1449,11 @@ function ProductsSection({ token }: { token: string }) {
         slug: slugify(form.slug),
         price,
         salePrice: salePrice && salePrice > 0 ? salePrice : undefined,
+        description: form.description.trim() || undefined,
+        descriptionAr: form.descriptionAr.trim() || undefined,
+        features: form.features.filter((f) => f.en.trim() || f.ar.trim()),
       });
-      setForm({ title: "", titleAr: "", slug: "", price: "", salePrice: "" });
+      setForm({ title: "", titleAr: "", slug: "", price: "", salePrice: "", description: "", descriptionAr: "", features: [] });
       await load();
     } finally {
       setSaving(false);
@@ -1465,135 +1489,335 @@ function ProductsSection({ token }: { token: string }) {
 
   const removeImage = async (id: string, idx: number) => {
     await api.removeProductImage(token, id, idx);
-    setProducts((prev) => prev.map((p) => p.id === id
-      ? { ...p, images: p.images.filter((_, i) => i !== idx) }
-      : p
-    ));
+    setProducts((prev) => prev.map((p) => p.id === id ? { ...p, images: p.images.filter((_, i) => i !== idx) } : p));
+  };
+
+  const addFeature = () => setForm((f) => ({ ...f, features: [...f.features, { en: "", ar: "" }] }));
+  const removeFeature = (i: number) => setForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
+  const updateFeature = (i: number, key: "en" | "ar", val: string) =>
+    setForm((f) => ({ ...f, features: f.features.map((feat, idx) => idx === i ? { ...feat, [key]: val } : feat) }));
+
+  // ── Static handlers ──
+  const openStaticImagePicker = (slug: string) => {
+    pendingStaticSlug.current = slug;
+    staticFileInputRef.current?.click();
+  };
+
+  const onStaticFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const slug = pendingStaticSlug.current;
+    if (!file || !slug) return;
+    e.target.value = "";
+    setStaticUploadingFor(slug);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string;
+      await api.addStaticProductImage(token, slug, base64).catch(() => {});
+      await load();
+      setStaticUploadingFor(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeStaticImage = async (slug: string, idx: number) => {
+    await api.removeStaticProductImage(token, slug, idx);
+    setImageOverrides((prev) => ({ ...prev, [slug]: (prev[slug] ?? []).filter((_, i) => i !== idx) }));
+  };
+
+  const clearStaticImages = async (slug: string) => {
+    if (!window.confirm("استعادة الصور الأصلية للمنتج؟")) return;
+    await api.clearStaticProductImages(token, slug);
+    setImageOverrides((prev) => { const next = { ...prev }; delete next[slug]; return next; });
+  };
+
+  const toggleHidden = async (slug: string, currentlyHidden: boolean) => {
+    setTogglingHidden(slug);
+    await api.setProductVisibility(token, slug, !currentlyHidden).catch(() => {});
+    setHiddenSlugs((prev) => currentlyHidden ? prev.filter((s) => s !== slug) : [...prev, slug]);
+    setTogglingHidden(null);
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+      <input ref={staticFileInputRef} type="file" accept="image/*" className="hidden" onChange={onStaticFileChange} />
 
-      {/* Add product form */}
-      <section>
-        <h3 className="font-display text-xl mb-4">إضافة منتج جديد</h3>
-        <div className="lux-card p-5 space-y-3">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">الاسم (إنجليزي)</label>
-              <input
-                className="lux-input"
-                placeholder="Electric Brush"
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value, slug: slugify(e.target.value) }))}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">الاسم (عربي)</label>
-              <input
-                className="lux-input"
-                placeholder="فرشاة كهربائية"
-                value={form.titleAr}
-                onChange={(e) => setForm((f) => ({ ...f, titleAr: e.target.value }))}
-                dir="rtl"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">الـ Slug (رابط المنتج)</label>
-              <input
-                className="lux-input"
-                placeholder="electric-brush"
-                value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
-                dir="ltr"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
-                <input className="lux-input" type="number" min={0} placeholder="500" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
-                <input className="lux-input" type="number" min={0} placeholder="450" value={form.salePrice} onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))} />
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={addProduct}
-            disabled={saving || !form.title || !form.titleAr || !form.slug || !form.price}
-            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "جاري الإضافة..." : "+ إضافة المنتج"}
-          </button>
-        </div>
-      </section>
+      {/* Sub-tab switcher */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setSubTab("dynamic")}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${subTab === "dynamic" ? "bg-brand text-white" : "bg-soft border border-border text-ink hover:bg-white"}`}
+        >
+          منتجات مضافة
+        </button>
+        <button
+          onClick={() => setSubTab("static")}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${subTab === "static" ? "bg-brand text-white" : "bg-soft border border-border text-ink hover:bg-white"}`}
+        >
+          المنتجات الأصلية
+        </button>
+      </div>
 
-      {/* Products list */}
-      <section>
-        <h3 className="font-display text-xl mb-4">المنتجات المضافة ({products.length})</h3>
-        {products.length === 0 ? (
-          <p className="text-center py-12 text-muted-foreground text-sm">لا توجد منتجات مضافة بعد</p>
-        ) : (
-          <div className="space-y-4">
-            {products.map((p) => (
-              <div key={p.id} className="lux-card p-5">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
+      {subTab === "dynamic" && (
+        <div className="space-y-8">
+          {/* Add product form */}
+          <section>
+            <h3 className="font-display text-xl mb-4">إضافة منتج جديد</h3>
+            <div className="lux-card p-5 space-y-4">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الاسم (إنجليزي)</label>
+                  <input
+                    className="lux-input"
+                    placeholder="Electric Brush"
+                    value={form.title}
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value, slug: slugify(e.target.value) }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الاسم (عربي)</label>
+                  <input
+                    className="lux-input"
+                    placeholder="فرشاة كهربائية"
+                    value={form.titleAr}
+                    onChange={(e) => setForm((f) => ({ ...f, titleAr: e.target.value }))}
+                    dir="rtl"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الـ Slug (رابط المنتج)</label>
+                  <input
+                    className="lux-input"
+                    placeholder="electric-brush"
+                    value={form.slug}
+                    onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
+                    dir="ltr"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="font-display text-lg" dir="ltr">{p.title}</p>
-                    <p className="text-sm text-muted-foreground">{p.titleAr}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
-                    <div className="flex items-center gap-3 mt-1 text-sm">
-                      <span className="font-medium text-ink">{p.price.toLocaleString("ar-EG")} ج.م</span>
-                      {p.salePrice && <span className="text-emerald-600">{p.salePrice.toLocaleString("ar-EG")} ج.م (خصم)</span>}
+                    <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
+                    <input className="lux-input" type="number" min={0} placeholder="500" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
+                    <input className="lux-input" type="number" min={0} placeholder="450" value={form.salePrice} onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الوصف (إنجليزي)</label>
+                  <textarea
+                    className="lux-input min-h-[80px] resize-y"
+                    placeholder="Product description..."
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
+                  <textarea
+                    className="lux-input min-h-[80px] resize-y"
+                    placeholder="وصف المنتج..."
+                    value={form.descriptionAr}
+                    onChange={(e) => setForm((f) => ({ ...f, descriptionAr: e.target.value }))}
+                    dir="rtl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-muted-foreground">المميزات</label>
+                  <button type="button" onClick={addFeature} className="text-xs text-deep-blue hover:underline">+ إضافة ميزة</button>
+                </div>
+                {form.features.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">لا توجد مميزات</p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.features.map((feat, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <input
+                          className="lux-input text-xs flex-1"
+                          placeholder="Feature in English"
+                          value={feat.en}
+                          onChange={(e) => updateFeature(i, "en", e.target.value)}
+                        />
+                        <input
+                          className="lux-input text-xs flex-1"
+                          placeholder="الميزة بالعربي"
+                          value={feat.ar}
+                          onChange={(e) => updateFeature(i, "ar", e.target.value)}
+                          dir="rtl"
+                        />
+                        <button type="button" onClick={() => removeFeature(i)} className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={addProduct}
+                disabled={saving || !form.title || !form.titleAr || !form.slug || !form.price}
+                className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "جاري الإضافة..." : "+ إضافة المنتج"}
+              </button>
+            </div>
+          </section>
+
+          {/* Dynamic products list */}
+          <section>
+            <h3 className="font-display text-xl mb-4">المنتجات المضافة ({products.length})</h3>
+            {products.length === 0 ? (
+              <p className="text-center py-12 text-muted-foreground text-sm">لا توجد منتجات مضافة بعد</p>
+            ) : (
+              <div className="space-y-4">
+                {products.map((p) => (
+                  <div key={p.id} className="lux-card p-5">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <p className="font-display text-lg" dir="ltr">{p.title}</p>
+                        <p className="text-sm text-muted-foreground">{p.titleAr}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
+                        <div className="flex items-center gap-3 mt-1 text-sm">
+                          <span className="font-medium text-ink">{p.price.toLocaleString("ar-EG")} ج.م</span>
+                          {p.salePrice && <span className="text-emerald-600">{p.salePrice.toLocaleString("ar-EG")} ج.م (خصم)</span>}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteProduct(p.id)}
+                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        حذف
+                      </button>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-muted-foreground">الصور ({p.images.length})</p>
+                        <button
+                          onClick={() => openImagePicker(p.id)}
+                          disabled={uploadingFor === p.id}
+                          className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50"
+                        >
+                          {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة"}
+                        </button>
+                      </div>
+                      {p.images.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">لا توجد صور بعد</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-3">
+                          {p.images.map((src, idx) => (
+                            <div key={idx} className="relative group">
+                              <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
+                              <button
+                                onClick={() => removeImage(p.id, idx)}
+                                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="حذف الصورة"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteProduct(p.id)}
-                    className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    حذف
-                  </button>
-                </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
-                {/* Images */}
-                <div className="mt-4 pt-4 border-t border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-muted-foreground">الصور ({p.images.length})</p>
+      {subTab === "static" && (
+        <section>
+          <h3 className="font-display text-xl mb-4">المنتجات الأصلية ({PRODUCTS.length})</h3>
+          <div className="space-y-4">
+            {PRODUCTS.map((p) => {
+              const overrides = imageOverrides[p.slug] ?? [];
+              const isHidden = hiddenSlugs.includes(p.slug);
+              const hasOverrides = overrides.length > 0;
+              return (
+                <div key={p.slug} className={`lux-card p-5 transition-opacity ${isHidden ? "opacity-60" : ""}`}>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="font-display text-lg" dir="ltr">{p.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm font-medium text-ink">{p.price.toLocaleString("ar-EG")} ج.م</span>
+                        {hasOverrides && (
+                          <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">صور مخصصة</span>
+                        )}
+                        {isHidden && (
+                          <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">مخفي</span>
+                        )}
+                      </div>
+                    </div>
                     <button
-                      onClick={() => openImagePicker(p.id)}
-                      disabled={uploadingFor === p.id}
-                      className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50"
+                      onClick={() => toggleHidden(p.slug, isHidden)}
+                      disabled={togglingHidden === p.slug}
+                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 ${isHidden ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}
                     >
-                      {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة"}
+                      {togglingHidden === p.slug ? "..." : isHidden ? "إظهار" : "إخفاء"}
                     </button>
                   </div>
-                  {p.images.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">لا توجد صور بعد</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-3">
-                      {p.images.map((src, idx) => (
-                        <div key={idx} className="relative group">
-                          <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
+
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        {hasOverrides ? `صور مخصصة (${overrides.length})` : "الصورة الأصلية"}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {hasOverrides && (
                           <button
-                            onClick={() => removeImage(p.id, idx)}
-                            className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            aria-label="حذف الصورة"
+                            onClick={() => clearStaticImages(p.slug)}
+                            className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-lg px-3 py-1.5 transition-colors"
                           >
-                            ×
+                            استعادة الأصلية
                           </button>
-                        </div>
-                      ))}
+                        )}
+                        <button
+                          onClick={() => openStaticImagePicker(p.slug)}
+                          disabled={staticUploadingFor === p.slug}
+                          className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50"
+                        >
+                          {staticUploadingFor === p.slug ? "جاري الرفع..." : "+ إضافة صورة"}
+                        </button>
+                      </div>
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-3">
+                      {hasOverrides ? (
+                        overrides.map((src, idx) => (
+                          <div key={idx} className="relative group">
+                            <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
+                            <button
+                              onClick={() => removeStaticImage(p.slug, idx)}
+                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="حذف الصورة"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="relative">
+                          <img src={p.image} alt={p.title} className="h-20 w-20 object-contain rounded-xl border border-border bg-white p-1" />
+                          <span className="absolute -bottom-4 left-0 right-0 text-center text-[9px] text-muted-foreground">أصلية</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

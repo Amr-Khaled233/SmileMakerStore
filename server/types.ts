@@ -67,6 +67,9 @@ export type DynamicProduct = {
   slug: string;
   title: string;
   titleAr: string;
+  description?: string;
+  descriptionAr?: string;
+  features?: { en: string; ar: string }[];
   price: number;
   salePrice?: number;
   images: string[]; // base64 data URLs
@@ -79,4 +82,6 @@ export type DbData = {
   pricing: Pricing;
   freeShipping: FreeShippingWindow;
   dynamicProducts: DynamicProduct[];
+  productImageOverrides: Record<string, string[]>; // slug -> base64 images
+  productHidden: string[]; // slugs of hidden static products
 };

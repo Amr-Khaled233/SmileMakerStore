@@ -43,7 +43,23 @@ export function ProductDetail(p: ProductDetailProps) {
   const { t, tl, lang } = useT();
   const [activeImg, setActiveImg] = useState(p.image);
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
+  const [dbImages, setDbImages] = useState<string[] | null>(null);
+
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
+  useEffect(() => {
+    api.getProductsMeta().then((meta) => {
+      const imgs = meta.imageOverrides[p.slug];
+      if (imgs?.length) {
+        setDbImages(imgs);
+        setActiveImg(imgs[0]);
+      }
+    }).catch(() => {});
+  }, [p.slug]);
+
+  // Use DB images if available, otherwise fall back to static gallery
+  const gallery: { src: string; alt: string }[] = dbImages
+    ? dbImages.map((src, i) => ({ src, alt: `${p.title} ${i + 1}` }))
+    : (p.gallery ?? [{ src: p.image, alt: p.title }]);
 
   const priceOv = pricing.products.find((x) => x.slug === p.slug);
   const displayPrice = priceOv?.price ?? p.price;
@@ -67,9 +83,9 @@ export function ProductDetail(p: ProductDetailProps) {
             <div className="aspect-square rounded-3xl bg-white shadow-[var(--shadow-glow)] flex items-center justify-center overflow-hidden">
               <img key={activeImg} src={activeImg} alt={p.title} loading="eager" width={1024} height={1024} className="w-4/5 h-4/5 object-contain animate-float" />
             </div>
-            {p.gallery && (
+            {gallery.length > 1 && (
               <div className="mt-4 grid grid-cols-4 gap-3">
-                {p.gallery.map((g, i) => {
+                {gallery.map((g, i) => {
                   const active = activeImg === g.src;
                   return (
                     <button
