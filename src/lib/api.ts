@@ -110,9 +110,10 @@ export const api = {
     req<{ success: boolean }>("DELETE", "/settings/free-shipping", undefined, token),
 };
 
-// Manager token helpers
+// Manager token helpers — sessionStorage so the token is cleared when the browser tab/session closes.
+// This means a password is required on every new visit, which is intentional for security.
 const TOKEN_KEY = "sm-manager-token";
 export const getToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
-export const saveToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+  typeof window !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) : null;
+export const saveToken = (t: string) => sessionStorage.setItem(TOKEN_KEY, t);
+export const clearToken = () => sessionStorage.removeItem(TOKEN_KEY);

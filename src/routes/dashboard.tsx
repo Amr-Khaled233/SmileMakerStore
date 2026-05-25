@@ -985,11 +985,24 @@ const CHART_GRADIENTS = [
 function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id: string) => Promise<void> }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deliveredSearch, setDeliveredSearch] = useState("");
 
   const deliveredOrders = useMemo(
     () => [...orders].filter((o) => o.status === "delivered").sort((a, b) => b.createdAt - a.createdAt),
     [orders]
   );
+
+  const filteredDelivered = useMemo(() => {
+    const q = deliveredSearch.trim();
+    if (!q) return deliveredOrders;
+    return deliveredOrders.filter(
+      (o) =>
+        o.phone.includes(q) ||
+        o.name.includes(q) ||
+        o.id.toLowerCase().includes(q.toLowerCase()) ||
+        o.city.includes(q)
+    );
+  }, [deliveredOrders, deliveredSearch]);
 
   const handleDeleteDelivered = async (id: string) => {
     if (!window.confirm("حذف الأوردر؟ سيتم إرجاع الكميات للمخزون تلقائياً.")) return;
@@ -1011,15 +1024,35 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
     return [...map.values()].sort((a, b) => b.units - a.units);
   }, [orders]);
 
-  // City distribution from ALL orders
-  const topCities = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const o of orders) map.set(o.city, (map.get(o.city) ?? 0) + 1);
-    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  // City distribution — sorted by revenue
+  const cityStats = useMemo(() => {
+    const map = new Map<string, { orders: number; revenue: number }>();
+    for (const o of orders) {
+      const ex = map.get(o.city) ?? { orders: 0, revenue: 0 };
+      map.set(o.city, { orders: ex.orders + 1, revenue: ex.revenue + o.total });
+    }
+    return [...map.entries()]
+      .map(([city, s]) => ({ city, ...s }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [orders]);
+
+  // Monthly sales — newest first
+  const monthlyStats = useMemo(() => {
+    const map = new Map<string, { label: string; orders: number; revenue: number }>();
+    for (const o of orders) {
+      const d = new Date(o.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("ar-EG", { year: "numeric", month: "long" });
+      const ex = map.get(key) ?? { label, orders: 0, revenue: 0 };
+      map.set(key, { label, orders: ex.orders + 1, revenue: ex.revenue + o.total });
+    }
+    return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v);
   }, [orders]);
 
   const maxUnits = productStats[0]?.units ?? 1;
-  const maxCityCount = topCities[0]?.[1] ?? 1;
+  const maxCityRevenue = cityStats[0]?.revenue ?? 1;
+  const maxMonthRevenue = monthlyStats[0]?.revenue ?? 1;
   const deliveredRevenue = deliveredOrders.reduce((s, o) => s + o.total, 0);
   const avgOrder = deliveredOrders.length > 0 ? Math.round(deliveredRevenue / deliveredOrders.length) : 0;
 
@@ -1030,8 +1063,41 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
         <StatCard label="أوردرات مُسلَّمة"   value={deliveredOrders.length}                          icon={CheckCircle2} />
         <StatCard label="إيرادات مؤكدة"     value={deliveredOrders.length ? formatEGP(deliveredRevenue) : "—"} icon={TrendingUp} accent />
         <StatCard label="متوسط الأوردر"     value={avgOrder ? formatEGP(avgOrder) : "—"}              icon={Tag} />
-        <StatCard label="أكثر مدينة طلباً"  value={topCities[0]?.[0] ?? "—"} sub={topCities[0] ? `${topCities[0][1]} أوردر` : undefined} icon={Package} />
+        <StatCard label="أكثر مدينة طلباً"  value={cityStats[0]?.city ?? "—"} sub={cityStats[0] ? `${cityStats[0].orders} أوردر` : undefined} icon={Package} />
       </div>
+
+      {/* Monthly sales chart */}
+      {monthlyStats.length > 0 && (
+        <div className="lux-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="h-5 w-5 text-deep-blue" />
+            <h3 className="font-display text-xl">المبيعات الشهرية</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-5">إيرادات وعدد الأوردرات لكل شهر</p>
+          <div className="space-y-4">
+            {monthlyStats.map((m, i) => (
+              <div key={m.label}>
+                <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-muted-foreground w-6 shrink-0 text-center">#{i + 1}</span>
+                    <span className="text-sm font-medium text-ink">{m.label}</span>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <span className="font-semibold text-ink">{formatEGP(m.revenue)}</span>
+                    <span className="text-muted-foreground">{m.orders} أوردر</span>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full bg-soft overflow-hidden">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                    style={{ width: `${Math.max(4, Math.round((m.revenue / maxMonthRevenue) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Product demand chart */}
       <div className="lux-card p-5 sm:p-6">
@@ -1070,25 +1136,32 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
         )}
       </div>
 
-      {/* City distribution */}
-      {topCities.length > 0 && (
+      {/* City distribution — sorted by revenue */}
+      {cityStats.length > 0 && (
         <div className="lux-card p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-1">
             <Package className="h-5 w-5 text-deep-blue" />
             <h3 className="font-display text-xl">التوزيع الجغرافي</h3>
-            <span className="text-xs text-muted-foreground ms-auto">من جميع الأوردرات</span>
+            <span className="text-xs text-muted-foreground ms-auto">مرتبة حسب الإيرادات</span>
           </div>
-          <div className="space-y-3">
-            {topCities.map(([city, count], i) => (
-              <div key={city}>
-                <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-ink font-medium">{city}</span>
-                  <span className="text-xs text-muted-foreground">{count} أوردر · {Math.round((count / orders.length) * 100)}%</span>
+          <p className="text-xs text-muted-foreground mb-5">من جميع الأوردرات</p>
+          <div className="space-y-4">
+            {cityStats.map((c, i) => (
+              <div key={c.city}>
+                <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-muted-foreground w-6 shrink-0 text-center">#{i + 1}</span>
+                    <span className="text-sm font-medium text-ink">{c.city}</span>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <span className="font-semibold text-ink">{formatEGP(c.revenue)}</span>
+                    <span className="text-muted-foreground">{c.orders} أوردر · {Math.round((c.orders / orders.length) * 100)}%</span>
+                  </div>
                 </div>
                 <div className="h-2 rounded-full bg-soft overflow-hidden">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
-                    style={{ width: `${Math.max(4, Math.round((count / maxCityCount) * 100))}%` }}
+                    style={{ width: `${Math.max(4, Math.round((c.revenue / maxCityRevenue) * 100))}%` }}
                   />
                 </div>
               </div>
@@ -1106,13 +1179,27 @@ function AnalyticsSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
             {deliveredOrders.length}
           </span>
         </div>
+        {deliveredOrders.length > 0 && (
+          <div className="relative mb-4">
+            <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              placeholder="ابحث برقم التليفون أو الاسم أو المدينة..."
+              value={deliveredSearch}
+              onChange={(e) => setDeliveredSearch(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background pe-10 ps-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-deep-blue/30"
+            />
+          </div>
+        )}
         {deliveredOrders.length === 0 ? (
           <p className="text-center py-10 text-sm text-muted-foreground">
             لا يوجد أوردرات مُسلَّمة بعد — غيّر الحالة من داخل الأوردر لـ "تم الاستلام"
           </p>
+        ) : filteredDelivered.length === 0 ? (
+          <p className="text-center py-8 text-sm text-muted-foreground">لا توجد نتائج لـ "{deliveredSearch}"</p>
         ) : (
           <div className="divide-y divide-border">
-            {deliveredOrders.map((o) => {
+            {filteredDelivered.map((o) => {
               const isExpanded = expandedId === o.id;
               const isDeleting = deletingId === o.id;
               return (
