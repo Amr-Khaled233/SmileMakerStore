@@ -15,26 +15,7 @@ import {
   Truck,
   Pencil,
   Tag,
-  Bell,
 } from "lucide-react";
-
-function playNotificationSound() {
-  try {
-    const ctx = new AudioContext();
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
-    [880, 1100].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.connect(gain);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
-      gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.15);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.35);
-      osc.start(ctx.currentTime + i * 0.15);
-      osc.stop(ctx.currentTime + i * 0.15 + 0.35);
-    });
-  } catch { /* AudioContext unavailable */ }
-}
 
 type OrderStatus = "pending" | "dispatched" | "delivered";
 
@@ -1425,25 +1406,10 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const seenIdsRef = useRef<Set<string> | null>(null);
-
-  const loadOrders = useCallback(async (isPoll = false) => {
+  const loadOrders = useCallback(async () => {
     try {
       const data = await api.getOrders(token);
-      if (!isPoll) {
-        seenIdsRef.current = new Set(data.map((o) => o.id));
-        setOrders(data);
-      } else {
-        const seen = seenIdsRef.current!;
-        const fresh = data.filter((o) => !seen.has(o.id));
-        if (fresh.length > 0) {
-          fresh.forEach((o) => seen.add(o.id));
-          setUnreadCount((c) => c + fresh.length);
-          playNotificationSound();
-        }
-        setOrders(data);
-      }
+      setOrders(data);
     } catch (err) {
       const msg = String(err);
       if (msg.includes("Unauthorized") || msg.includes("Invalid token")) {
@@ -1455,13 +1421,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     }
   }, [token, onLogout]);
 
-  useEffect(() => { loadOrders(false); }, [loadOrders]);
-
-  // Poll every 30 seconds for new orders
-  useEffect(() => {
-    const id = setInterval(() => loadOrders(true), 30_000);
-    return () => clearInterval(id);
-  }, [loadOrders]);
+  useEffect(() => { loadOrders(); }, [loadOrders]);
 
   const handleStatusChange = async (id: string, status: OrderStatus) => {
     await api.updateOrderStatus(token, id, status);
@@ -1555,34 +1515,18 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
             </div>
             <span className="font-display text-lg text-ink">Smile Maker · Dashboard</span>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Notification bell */}
-            <button
-              onClick={() => { setUnreadCount(0); setTab("orders"); }}
-              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white hover:bg-soft transition-colors"
-              aria-label="إشعارات الأوردرات الجديدة"
-            >
-              <Bell className={`h-4 w-4 ${unreadCount > 0 ? "text-emerald-600" : "text-muted-foreground"}`} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
-                if (window.confirm("هل تريد تسجيل الخروج؟")) {
-                  clearToken();
-                  onLogout();
-                }
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-600 bg-white hover:bg-red-50 px-3 py-2 text-sm font-medium transition-all"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              تسجيل خروج
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              if (window.confirm("هل تريد تسجيل الخروج؟")) {
+                clearToken();
+                onLogout();
+              }
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-red-200 text-red-600 bg-white hover:bg-red-50 px-3 py-2 text-sm font-medium transition-all"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            تسجيل خروج
+          </button>
         </div>
       </header>
 

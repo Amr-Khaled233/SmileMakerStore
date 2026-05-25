@@ -1,12 +1,113 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap } from "lucide-react";
+import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap, ChevronLeft, ChevronRight } from "lucide-react";
 import logo from "@/assets/smile-maker-logo.png";
 import hero from "@/assets/hero-smile.jpg";
 import flosser from "@/assets/h2o-flosser-1.jpeg";
 import ortho from "@/assets/ortho-kit-2.jpeg";
 import { useT, type L } from "@/lib/i18n";
 import { formatEGP } from "@/data/products";
+import { useEffect, useRef, useState, useCallback } from "react";
+
+import slide1 from "@/assets/h2o-flosser-1.jpeg";
+import slide2 from "@/assets/h2o-flosser-3.jpeg";
+import slide3 from "@/assets/electric-brush-1.jpeg";
+import slide4 from "@/assets/electric-brush-3.jpeg";
+import slide5 from "@/assets/ortho-kit-1.jpeg";
+import slide6 from "@/assets/l-shaped-1.jpeg";
+import slide7 from "@/assets/ortho-wax-main.jpeg";
+
+const SLIDES = [slide1, slide2, slide3, slide4, slide5, slide6, slide7];
+
+function ProductCarousel() {
+  const [active, setActive] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const n = SLIDES.length;
+
+  const scrollTo = useCallback((idx: number) => {
+    const i = ((idx % n) + n) % n;
+    setActive(i);
+    trackRef.current?.scrollTo({ left: i * (trackRef.current.offsetWidth), behavior: "smooth" });
+  }, [n]);
+
+  const startTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setActive((a) => {
+        const next = (a + 1) % n;
+        trackRef.current?.scrollTo({ left: next * (trackRef.current.offsetWidth), behavior: "smooth" });
+        return next;
+      });
+    }, 3200);
+  }, [n]);
+
+  useEffect(() => {
+    startTimer();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [startTimer]);
+
+  const onScroll = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const i = Math.round(track.scrollLeft / track.offsetWidth);
+    if (i >= 0 && i < n) setActive(i);
+  };
+
+  return (
+    <div className="relative select-none">
+      {/* Track */}
+      <div
+        ref={trackRef}
+        onScroll={onScroll}
+        onTouchStart={() => { if (timerRef.current) clearInterval(timerRef.current); }}
+        onTouchEnd={startTimer}
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide rounded-2xl sm:rounded-3xl shadow-xl"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {SLIDES.map((src, i) => (
+          <div key={i} className="shrink-0 w-full snap-center aspect-square sm:aspect-[4/3]">
+            <img
+              src={src}
+              alt=""
+              loading={i === 0 ? "eager" : "lazy"}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Prev / Next buttons */}
+      <button
+        onClick={() => { scrollTo(active - 1); startTimer(); }}
+        className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur shadow hover:bg-white transition-colors"
+        aria-label="السابق"
+      >
+        <ChevronLeft className="h-5 w-5 text-ink" />
+      </button>
+      <button
+        onClick={() => { scrollTo(active + 1); startTimer(); }}
+        className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur shadow hover:bg-white transition-colors"
+        aria-label="التالي"
+      >
+        <ChevronRight className="h-5 w-5 text-ink" />
+      </button>
+
+      {/* Dots */}
+      <div className="flex justify-center gap-1.5 mt-4">
+        {SLIDES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => { scrollTo(i); startTimer(); }}
+            className={`h-1.5 rounded-full transition-all duration-300 ${i === active ? "w-6 bg-deep-blue" : "w-1.5 bg-border"}`}
+            aria-label={`الصورة ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
@@ -77,6 +178,24 @@ function HomePage() {
           </div>
         </div>
         <div className="arc-divider" />
+      </section>
+
+      {/* Product image carousel */}
+      <section className="py-10 sm:py-14">
+        <div className="container-lux max-w-2xl">
+          <div className="text-center mb-6">
+            <p className="eyebrow">{t("home.heroBadge")}</p>
+            <h2 className="mt-2 text-3xl sm:text-4xl font-display">
+              {tl({ en: "Our Products", ar: "منتجاتنا" })}
+            </h2>
+          </div>
+          <ProductCarousel />
+          <div className="mt-6 text-center">
+            <Link to="/products" className="btn-primary">
+              {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+            </Link>
+          </div>
+        </div>
       </section>
 
       <section className="section-pad">
