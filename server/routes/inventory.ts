@@ -4,11 +4,12 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-// Public — returns which products/colors are out of stock (qty === 0)
+// Public — returns OOS flags + actual color quantities for virtual depletion checks
 router.get("/public", async (_req, res) => {
   const db = await readDb();
   const outOfStock: string[] = [];
   const outOfStockColors: Record<string, string[]> = {};
+  const colorQty: Record<string, Record<string, number>> = {};
 
   for (const entry of db.inventory) {
     if (entry.qty === 0) outOfStock.push(entry.slug);
@@ -17,9 +18,10 @@ router.get("/public", async (_req, res) => {
         .filter(([, qty]) => qty === 0)
         .map(([colorId]) => colorId);
       if (oosColors.length > 0) outOfStockColors[entry.slug] = oosColors;
+      colorQty[entry.slug] = { ...entry.colorQty };
     }
   }
-  res.json({ outOfStock, outOfStockColors });
+  res.json({ outOfStock, outOfStockColors, colorQty });
 });
 
 // Protected — full inventory

@@ -5,6 +5,7 @@ export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry };
 export type PublicInventoryStatus = {
   outOfStock: string[];
   outOfStockColors: Record<string, string[]>;
+  colorQty: Record<string, Record<string, number>>;
 };
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";

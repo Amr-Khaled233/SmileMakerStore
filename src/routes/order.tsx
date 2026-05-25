@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug, type Product } from "@/data/products";
@@ -34,7 +34,7 @@ function OrderPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", city: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [inventoryStatus, setInventoryStatus] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {} });
+  const [inventoryStatus, setInventoryStatus] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {}, colorQty: {} });
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [freeShippingActive, setFreeShippingActive] = useState(false);
   const [bundleQty, setBundleQty] = useState<Record<string, number>>({});
@@ -161,6 +161,31 @@ function OrderPage() {
   }, [matchedBundles, bundleColorSelections, standaloneQty, standaloneColorQty, tl, products]);
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+
+  // Returns how many of colorId for slug are consumed by instances BEFORE instanceIdx
+  // (within the same bundle) + all instances of other matched bundles + standalone qty.
+  const colorConsumedBefore = useCallback(
+    (slug: string, colorId: string, bundleId: string, instanceIdx: number): number => {
+      let count = standaloneColorQty[slug as ProductSlug]?.[colorId] ?? 0;
+      for (const mb of matchedBundles) {
+        const limit = mb.id === bundleId ? instanceIdx : (bundleQty[mb.id] ?? 1);
+        for (let j = 0; j < limit; j++) {
+          if (bundleColorSelections[mb.id]?.[j]?.[slug] === colorId) count++;
+        }
+      }
+      return count;
+    },
+    [matchedBundles, bundleQty, bundleColorSelections, standaloneColorQty],
+  );
+
+  const isColorVirtuallyOos = useCallback(
+    (slug: string, colorId: string, bundleId: string, instanceIdx: number): boolean => {
+      const available = inventoryStatus.colorQty?.[slug]?.[colorId];
+      if (available === undefined) return false;
+      return colorConsumedBefore(slug, colorId, bundleId, instanceIdx) >= available;
+    },
+    [inventoryStatus, colorConsumedBefore],
+  );
 
   const bundleDiscount = useMemo(() => {
     return matchedBundles.reduce((sum, b) => {
@@ -496,8 +521,9 @@ function OrderPage() {
                                       </div>
                                       <div className="flex gap-2 flex-wrap">
                                         {cp.colors!.map((c) => {
-                                          const colorOos = cp.outOfStockColors?.includes(c.id) === true;
                                           const isSelected = selectedColorId === c.id;
+                                          const colorOos = cp.outOfStockColors?.includes(c.id) === true
+                                            || (!isSelected && isColorVirtuallyOos(cp.slug, c.id, b.id, instanceIdx));
                                           return (
                                             <button
                                               key={c.id}
