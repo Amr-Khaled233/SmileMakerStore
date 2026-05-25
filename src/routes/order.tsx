@@ -58,27 +58,39 @@ function OrderPage() {
   const bundleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
+  const [staticColorOverrides, setStaticColorOverrides] = useState<Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]>>({});
 
   useEffect(() => { api.getInventoryStatus().then(setInventoryStatus).catch(() => {}); }, []);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getFreeShippingStatus().then((r) => setFreeShippingActive(r.active)).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
-  useEffect(() => { api.getProductsMeta().then((m) => setBundleOverrides(m.bundleOverrides)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.getProductsMeta().then((m) => {
+      setBundleOverrides(m.bundleOverrides);
+      const colorOvs: Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]> = {};
+      for (const [slug, ov] of Object.entries(m.staticOverrides ?? {})) {
+        if (ov.colors?.length) colorOvs[slug] = ov.colors;
+      }
+      setStaticColorOverrides(colorOvs);
+    }).catch(() => {});
+  }, []);
 
-  // Merge static product data with live inventory status and pricing overrides
+  // Merge static product data with live inventory status, pricing overrides, and color overrides
   const products = useMemo(
     () =>
       PRODUCTS.map((p) => {
         const priceOv = pricing.products.find((x) => x.slug === p.slug);
+        const colorOv = staticColorOverrides[p.slug];
         return {
           ...p,
           price: priceOv?.price ?? p.price,
           salePrice: priceOv !== undefined ? (priceOv.salePrice ?? undefined) : p.salePrice,
           outOfStock: inventoryStatus.outOfStock.includes(p.slug) ? true : p.outOfStock,
           outOfStockColors: inventoryStatus.outOfStockColors[p.slug] ?? p.outOfStockColors,
+          colors: colorOv ?? p.colors,
         };
       }),
-    [inventoryStatus, pricing],
+    [inventoryStatus, pricing, staticColorOverrides],
   );
 
   // Unified display list for bundle resolution (static + dynamic)

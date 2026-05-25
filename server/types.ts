@@ -89,7 +89,10 @@ export type BundleOverride = {
 export type StaticProductOverride = {
   description?: string;
   descriptionAr?: string;
+  taglineEn?: string;
+  taglineAr?: string;
   features?: { en: string; ar: string }[];
+  colors?: { id: string; label: { en: string; ar: string }; hex: string }[];
 };
 
 export type DbData = {

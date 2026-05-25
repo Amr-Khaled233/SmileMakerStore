@@ -27,7 +27,15 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
 import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, BundleOverride, StaticProductOverride } from "@/lib/api";
-import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
+import { PRODUCTS, BUNDLES, formatEGP, effectivePrice, H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY, WAX_GALLERY, LSHAPED_GALLERY } from "@/data/products";
+
+const PRODUCT_GALLERIES: Record<string, string[]> = {
+  "h2o-water-flosser": H2O_GALLERY,
+  "ortho-oral-kit": ORTHO_KIT_GALLERY,
+  "electrical-dental-brush": ELECTRIC_BRUSH_GALLERY,
+  "ortho-sheet": WAX_GALLERY,
+  "l-shaped-interdental-brush": LSHAPED_GALLERY,
+};
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -1429,7 +1437,12 @@ function ProductsSection({ token }: { token: string }) {
   const [pricingOverrides, setPricingOverrides] = useState<Record<string, { price: number; salePrice?: number | null }>>({});
   const [staticOverrides, setStaticOverrides] = useState<Record<string, StaticProductOverride>>({});
   const [editingStaticSlug, setEditingStaticSlug] = useState<string | null>(null);
-  const [staticEditForm, setStaticEditForm] = useState({ description: "", descriptionAr: "", features: [] as { en: string; ar: string }[] });
+  const [staticEditForm, setStaticEditForm] = useState({
+    description: "", descriptionAr: "",
+    taglineEn: "", taglineAr: "",
+    features: [] as { en: string; ar: string }[],
+    colors: [] as { id: string; label: { en: string; ar: string }; hex: string }[],
+  });
   const [savingStaticDetails, setSavingStaticDetails] = useState(false);
 
   // Bundles
@@ -1552,11 +1565,19 @@ function ProductsSection({ token }: { token: string }) {
   };
 
   const startEditStaticDetails = (slug: string) => {
+    const prod = PRODUCTS.find((x) => x.slug === slug)!;
     const ov = staticOverrides[slug] ?? {};
     setStaticEditForm({
-      description: ov.description ?? "",
-      descriptionAr: ov.descriptionAr ?? "",
+      description: ov.description ?? prod.description.en,
+      descriptionAr: ov.descriptionAr ?? prod.description.ar,
+      taglineEn: ov.taglineEn ?? prod.tagline.en,
+      taglineAr: ov.taglineAr ?? prod.tagline.ar,
       features: ov.features ? [...ov.features] : [],
+      colors: ov.colors
+        ? [...ov.colors]
+        : prod.colors
+          ? prod.colors.map((c) => ({ id: c.id, label: { en: c.label.en, ar: c.label.ar }, hex: c.hex }))
+          : [],
     });
     setEditingStaticSlug(slug);
   };
@@ -1566,7 +1587,10 @@ function ProductsSection({ token }: { token: string }) {
     await api.updateStaticProductDetails(token, editingStaticSlug, {
       description: staticEditForm.description.trim() || undefined,
       descriptionAr: staticEditForm.descriptionAr.trim() || undefined,
+      taglineEn: staticEditForm.taglineEn.trim() || undefined,
+      taglineAr: staticEditForm.taglineAr.trim() || undefined,
       features: staticEditForm.features.filter((f) => f.en.trim() || f.ar.trim()),
+      colors: staticEditForm.colors.filter((c) => c.label.en.trim() || c.label.ar.trim()),
     }).catch(() => {});
     await load();
     setSavingStaticDetails(false);
@@ -1576,6 +1600,12 @@ function ProductsSection({ token }: { token: string }) {
   const removeStaticFeature = (i: number) => setStaticEditForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
   const updateStaticFeature = (i: number, key: "en" | "ar", val: string) =>
     setStaticEditForm((f) => ({ ...f, features: f.features.map((feat, idx) => idx === i ? { ...feat, [key]: val } : feat) }));
+  const addStaticColor = () => setStaticEditForm((f) => ({ ...f, colors: [...f.colors, { id: `c${Date.now()}`, label: { en: "", ar: "" }, hex: "#4B9CD3" }] }));
+  const removeStaticColor = (i: number) => setStaticEditForm((f) => ({ ...f, colors: f.colors.filter((_, idx) => idx !== i) }));
+  const updateStaticColorLabel = (i: number, key: "en" | "ar", val: string) =>
+    setStaticEditForm((f) => ({ ...f, colors: f.colors.map((c, idx) => idx === i ? { ...c, label: { ...c.label, [key]: val } } : c) }));
+  const updateStaticColorHex = (i: number, val: string) =>
+    setStaticEditForm((f) => ({ ...f, colors: f.colors.map((c, idx) => idx === i ? { ...c, hex: val } : c) }));
 
   // ── Bundle handlers ──
   const allProductOptions = [
@@ -1823,24 +1853,37 @@ function ProductsSection({ token }: { token: string }) {
       {subTab === "static" && (
         <section>
           <h3 className="font-display text-xl mb-4">المنتجات الأصلية ({PRODUCTS.length})</h3>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {PRODUCTS.map((p) => {
-              const overrides = imageOverrides[p.slug] ?? [];
+              const customImgs = imageOverrides[p.slug] ?? [];
+              const hasCustomImgs = customImgs.length > 0;
+              const origGallery = PRODUCT_GALLERIES[p.slug] ?? [p.image];
+              const displayImages = hasCustomImgs ? customImgs : origGallery;
+
               const isHidden = hiddenSlugs.includes(p.slug);
-              const hasOverrides = overrides.length > 0;
               const priceOv = pricingOverrides[p.slug];
               const displayPrice = priceOv?.price ?? p.price;
               const displaySalePrice = priceOv !== undefined ? priceOv.salePrice : p.salePrice;
+
+              const textOv = staticOverrides[p.slug] ?? {};
+              const currentDesc = { en: textOv.description || p.description.en, ar: textOv.descriptionAr || p.description.ar };
+              const currentTagline = { en: textOv.taglineEn || p.tagline.en, ar: textOv.taglineAr || p.tagline.ar };
+              const currentFeatures = textOv.features ?? [];
+              const currentColors = textOv.colors ?? p.colors ?? [];
+              const hasAnyOverride = hasCustomImgs || !!(textOv.description || textOv.descriptionAr || textOv.taglineEn || textOv.taglineAr || textOv.features?.length || textOv.colors?.length);
+
               const isEditingDetails = editingStaticSlug === p.slug;
-              const hasTextOverride = !!(staticOverrides[p.slug]?.description || staticOverrides[p.slug]?.features?.length);
+
               return (
-                <div key={p.slug} className={`lux-card p-5 transition-opacity ${isHidden ? "opacity-60" : ""}`}>
+                <div key={p.slug} className={`lux-card p-5 space-y-5 transition-opacity ${isHidden ? "opacity-60" : ""}`}>
+
+                  {/* ── Header ── */}
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
-                      <p className="font-display text-lg" dir="ltr">{p.title}</p>
+                      <p className="font-display text-xl" dir="ltr">{p.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-sm font-medium text-ink">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="text-sm font-semibold text-ink">
                           {(displaySalePrice ?? displayPrice).toLocaleString("ar-EG")} ج.م
                         </span>
                         {displaySalePrice && (
@@ -1848,74 +1891,33 @@ function ProductsSection({ token }: { token: string }) {
                             {displayPrice.toLocaleString("ar-EG")} ج.م
                           </span>
                         )}
-                        {hasOverrides && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">صور مخصصة</span>}
-                        {hasTextOverride && <span className="text-[10px] bg-deep-blue/10 text-deep-blue border border-deep-blue/20 rounded-full px-2 py-0.5">تفاصيل مخصصة</span>}
-                        {isHidden && <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">مخفي</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                      <button onClick={() => isEditingDetails ? setEditingStaticSlug(null) : startEditStaticDetails(p.slug)}
-                        className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors">
-                        {isEditingDetails ? "إغلاق" : "تعديل التفاصيل"}
-                      </button>
-                      <button onClick={() => toggleHidden(p.slug, isHidden)} disabled={togglingHidden === p.slug}
-                        className={`text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 ${isHidden ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
-                        {togglingHidden === p.slug ? "..." : isHidden ? "إظهار" : "إخفاء"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Inline details edit form */}
-                  {isEditingDetails && (
-                    <div className="mt-4 pt-4 border-t border-border space-y-3">
-                      <div className="grid sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (إنجليزي)</label>
-                          <textarea className="lux-input text-xs min-h-[72px] resize-y" placeholder="Product description..."
-                            value={staticEditForm.description} onChange={(e) => setStaticEditForm((f) => ({ ...f, description: e.target.value }))} />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
-                          <textarea className="lux-input text-xs min-h-[72px] resize-y" placeholder="وصف المنتج..." dir="rtl"
-                            value={staticEditForm.descriptionAr} onChange={(e) => setStaticEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-xs text-muted-foreground">المميزات</label>
-                          <button type="button" onClick={addStaticFeature} className="text-xs text-deep-blue hover:underline">+ إضافة ميزة</button>
-                        </div>
-                        {staticEditForm.features.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">لا توجد مميزات مخصصة — سيُستخدم الأصلي</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {staticEditForm.features.map((feat, i) => (
-                              <div key={i} className="flex gap-2 items-center">
-                                <input className="lux-input text-xs flex-1" placeholder="Feature in English" value={feat.en}
-                                  onChange={(e) => updateStaticFeature(i, "en", e.target.value)} />
-                                <input className="lux-input text-xs flex-1" placeholder="الميزة بالعربي" value={feat.ar} dir="rtl"
-                                  onChange={(e) => updateStaticFeature(i, "ar", e.target.value)} />
-                                <button type="button" onClick={() => removeStaticFeature(i)} className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
-                              </div>
+                        {currentColors.length > 0 && (
+                          <div className="flex gap-1">
+                            {currentColors.map((c) => (
+                              <span key={c.id} className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} title={c.label.ar || c.label.en} />
                             ))}
                           </div>
                         )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={saveStaticDetails} disabled={savingStaticDetails}
-                          className="btn-primary text-xs py-1.5 px-4 disabled:opacity-50">
-                          {savingStaticDetails ? "جاري الحفظ..." : "حفظ التفاصيل"}
-                        </button>
-                        <button onClick={() => setEditingStaticSlug(null)} className="btn-ghost text-xs py-1.5 px-3">إلغاء</button>
+                        {hasCustomImgs && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">صور مخصصة</span>}
+                        {hasAnyOverride && <span className="text-[10px] bg-deep-blue/10 text-deep-blue border border-deep-blue/20 rounded-full px-2 py-0.5">معدّل</span>}
+                        {isHidden && <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">مخفي</span>}
                       </div>
                     </div>
-                  )}
+                    <button onClick={() => toggleHidden(p.slug, isHidden)} disabled={togglingHidden === p.slug}
+                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 shrink-0 ${isHidden ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
+                      {togglingHidden === p.slug ? "..." : isHidden ? "إظهار" : "إخفاء"}
+                    </button>
+                  </div>
 
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <p className="text-xs text-muted-foreground">{hasOverrides ? `صور مخصصة (${overrides.length})` : "الصورة الأصلية"}</p>
+                  {/* ── Images ── */}
+                  <div className="border-t border-border pt-4 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
-                        {hasOverrides && (
+                        <p className="text-xs font-medium text-ink">الصور ({displayImages.length})</p>
+                        {!hasCustomImgs && <span className="text-[10px] text-muted-foreground bg-soft border border-border rounded-full px-2 py-0.5">أصلية</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasCustomImgs && (
                           <button onClick={() => clearStaticImages(p.slug)}
                             className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-lg px-3 py-1.5 transition-colors">
                             استعادة الأصلية
@@ -1923,24 +1925,175 @@ function ProductsSection({ token }: { token: string }) {
                         )}
                         <button onClick={() => openStaticImagePicker(p.slug)} disabled={staticUploadingFor === p.slug}
                           className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
-                          {staticUploadingFor === p.slug ? "جاري الرفع..." : "+ إضافة صورة"}
+                          {staticUploadingFor === p.slug ? "جاري الرفع..." : "+ إضافة صورة مخصصة"}
                         </button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-3">
-                      {hasOverrides ? overrides.map((src, idx) => (
+                    <div className="flex flex-wrap gap-2">
+                      {displayImages.map((src, idx) => (
                         <div key={idx} className="relative group">
-                          <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
-                          <button onClick={() => removeStaticImage(p.slug, idx)}
-                            className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                          <img src={src} alt="" className={`h-20 w-20 object-cover rounded-xl border-2 ${idx === 0 ? "border-deep-blue/40" : "border-border"}`} />
+                          {hasCustomImgs && (
+                            <button onClick={() => removeStaticImage(p.slug, idx)}
+                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                          )}
+                          {idx === 0 && (
+                            <span className="absolute -bottom-4 left-0 right-0 text-center text-[9px] text-muted-foreground">أساسية</span>
+                          )}
                         </div>
-                      )) : (
-                        <div className="relative">
-                          <img src={p.image} alt={p.title} className="h-20 w-20 object-contain rounded-xl border border-border bg-white p-1" />
-                          <span className="absolute -bottom-4 left-0 right-0 text-center text-[9px] text-muted-foreground">أصلية</span>
-                        </div>
-                      )}
+                      ))}
                     </div>
+                    {!hasCustomImgs && (
+                      <p className="text-xs text-muted-foreground pt-3">أضف صوراً مخصصة لتحل محل الأصلية عند العملاء</p>
+                    )}
+                  </div>
+
+                  {/* ── Info / Edit ── */}
+                  <div className="border-t border-border pt-4">
+                    {!isEditingDetails ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-ink">التفاصيل</p>
+                          <button onClick={() => startEditStaticDetails(p.slug)}
+                            className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors">
+                            تعديل
+                          </button>
+                        </div>
+
+                        {/* Tagline */}
+                        <div className="bg-soft rounded-xl px-4 py-3 space-y-1">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">الوصف المختصر</p>
+                          <p className="text-sm text-ink" dir="rtl">{currentTagline.ar}</p>
+                          <p className="text-xs text-muted-foreground" dir="ltr">{currentTagline.en}</p>
+                        </div>
+
+                        {/* Description */}
+                        <div className="bg-soft rounded-xl px-4 py-3 space-y-1">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">الوصف الكامل</p>
+                          <p className="text-sm text-ink leading-relaxed line-clamp-4" dir="rtl">{currentDesc.ar}</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 mt-1" dir="ltr">{currentDesc.en}</p>
+                        </div>
+
+                        {/* Features */}
+                        {currentFeatures.length > 0 && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">المميزات</p>
+                            <div className="space-y-1">
+                              {currentFeatures.map((f, i) => (
+                                <div key={i} className="flex items-start gap-2 text-xs">
+                                  <span className="text-deep-blue mt-0.5 shrink-0">✓</span>
+                                  <span dir="rtl">{f.ar}</span>
+                                  {f.en && <span className="text-muted-foreground" dir="ltr">· {f.en}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Colors */}
+                        {currentColors.length > 0 && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">الألوان ({currentColors.length})</p>
+                            <div className="flex flex-wrap gap-2">
+                              {currentColors.map((c) => (
+                                <div key={c.id} className="flex items-center gap-1.5 text-xs bg-soft border border-border rounded-full px-2.5 py-1">
+                                  <span className="h-3 w-3 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }} />
+                                  <span>{c.label.ar || c.label.en}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-xs font-medium text-ink">تعديل التفاصيل</p>
+
+                        {/* Tagline */}
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف المختصر (إنجليزي)</label>
+                            <input className="lux-input text-xs" value={staticEditForm.taglineEn}
+                              onChange={(e) => setStaticEditForm((f) => ({ ...f, taglineEn: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف المختصر (عربي)</label>
+                            <input className="lux-input text-xs" value={staticEditForm.taglineAr} dir="rtl"
+                              onChange={(e) => setStaticEditForm((f) => ({ ...f, taglineAr: e.target.value }))} />
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف الكامل (إنجليزي)</label>
+                            <textarea className="lux-input text-xs min-h-[100px] resize-y" value={staticEditForm.description}
+                              onChange={(e) => setStaticEditForm((f) => ({ ...f, description: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف الكامل (عربي)</label>
+                            <textarea className="lux-input text-xs min-h-[100px] resize-y" value={staticEditForm.descriptionAr} dir="rtl"
+                              onChange={(e) => setStaticEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} />
+                          </div>
+                        </div>
+
+                        {/* Features */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs text-muted-foreground">المميزات</label>
+                            <button type="button" onClick={addStaticFeature} className="text-xs text-deep-blue hover:underline">+ إضافة ميزة</button>
+                          </div>
+                          {staticEditForm.features.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">لا توجد مميزات</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {staticEditForm.features.map((feat, i) => (
+                                <div key={i} className="flex gap-2 items-center">
+                                  <input className="lux-input text-xs flex-1" placeholder="Feature in English" value={feat.en}
+                                    onChange={(e) => updateStaticFeature(i, "en", e.target.value)} />
+                                  <input className="lux-input text-xs flex-1" placeholder="الميزة بالعربي" value={feat.ar} dir="rtl"
+                                    onChange={(e) => updateStaticFeature(i, "ar", e.target.value)} />
+                                  <button type="button" onClick={() => removeStaticFeature(i)} className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Colors */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs text-muted-foreground">الألوان</label>
+                            <button type="button" onClick={addStaticColor} className="text-xs text-deep-blue hover:underline">+ إضافة لون</button>
+                          </div>
+                          {staticEditForm.colors.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">لا يوجد ألوان</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {staticEditForm.colors.map((c, i) => (
+                                <div key={i} className="flex gap-2 items-center">
+                                  <input type="color" value={c.hex} onChange={(e) => updateStaticColorHex(i, e.target.value)}
+                                    className="h-9 w-12 rounded-lg border border-border cursor-pointer p-1 shrink-0" />
+                                  <input className="lux-input text-xs flex-1" placeholder="Color name EN" value={c.label.en}
+                                    onChange={(e) => updateStaticColorLabel(i, "en", e.target.value)} />
+                                  <input className="lux-input text-xs flex-1" placeholder="اسم اللون" value={c.label.ar} dir="rtl"
+                                    onChange={(e) => updateStaticColorLabel(i, "ar", e.target.value)} />
+                                  <button type="button" onClick={() => removeStaticColor(i)} className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button onClick={saveStaticDetails} disabled={savingStaticDetails}
+                            className="btn-primary text-xs py-1.5 px-4 disabled:opacity-50">
+                            {savingStaticDetails ? "جاري الحفظ..." : "حفظ التعديلات"}
+                          </button>
+                          <button onClick={() => setEditingStaticSlug(null)} className="btn-ghost text-xs py-1.5 px-3">إلغاء</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
