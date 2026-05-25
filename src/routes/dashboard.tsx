@@ -1698,9 +1698,15 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 // ─── Root Page Component ──────────────────────────────────────────────────────
 
 function DashboardPage() {
-  // Lazy initializer reads localStorage synchronously on first render — no flicker,
-  // no async gap where the login screen briefly appears before the token is found.
   const [token, setToken] = useState<string | null>(() => getToken());
+
+  // Clear the token from storage whenever the user leaves the dashboard,
+  // so they must re-enter the password on every visit.
+  useEffect(() => {
+    return () => {
+      clearToken();
+    };
+  }, []);
 
   if (!token) {
     return <LoginScreen onLogin={setToken} />;
