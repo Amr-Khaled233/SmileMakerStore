@@ -168,7 +168,7 @@ export const WAX_GALLERY = [waxNew1, wax3, wax4, wax5];
 export const LSHAPED_GALLERY = [lshaped1, lshaped2, lshaped3, lshaped4, lshaped5];
 
 /** WhatsApp contact (international format, no +) */
-export const WHATSAPP_NUMBER = "201050852966";
+const WHATSAPP_NUMBER = "201050852966";
 export const whatsappLink = (message?: string) =>
   `https://wa.me/${WHATSAPP_NUMBER}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
 

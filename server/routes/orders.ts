@@ -34,14 +34,9 @@ router.post("/", async (req, res) => {
   const order: Order = { ...body, createdAt: Date.now(), status: "pending" };
   db.orders.unshift(order);
 
-  // Diagnostic logging
-  console.log("[orders] POST items:", JSON.stringify(order.items ?? []));
-  console.log("[orders] inventory slugs:", db.inventory.map((e) => e.slug + ":" + e.qty).join(", "));
-
   // Auto-deduct inventory for each item ordered
   if (order.items?.length) {
     deductInventory(db, order.items);
-    console.log("[orders] post-deduct inventory:", db.inventory.map((e) => e.slug + ":" + e.qty).join(", "));
   }
 
   await writeDb(db);

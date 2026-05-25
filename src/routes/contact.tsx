@@ -4,21 +4,12 @@ import { Mail, Phone, MapPin, Instagram, Facebook, ArrowUpRight, MessageCircle }
 import type { MouseEvent } from "react";
 import { useT } from "@/lib/i18n";
 import { whatsappLink } from "@/data/products";
+import { TikTokIcon } from "@/components/site/TikTokIcon";
+import { SOCIAL_LINKS } from "@/lib/constants";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
 });
-
-const mapsLink = "https://www.google.com/maps?q=29.847217559814453,31.355276107788086&z=17&hl=en";
-const facebookLink = "https://web.facebook.com/smilemakercare?mibextid=wwXIfr&rdid=3fkZyF1iiUOelCS3&share_url=https%3A%2F%2Fweb.facebook.com%2Fshare%2F1AgKez2BLz%2F%3Fmibextid%3DwwXIfr%26_rdc%3D1%26_rdr";
-const instagramLink = "https://www.instagram.com/smile_maker_clinic_store";
-const tiktokLink = "https://www.tiktok.com/@smile.maker.co";
-
-const TikTokIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.74a8.16 8.16 0 0 0 4.77 1.52V6.81a4.85 4.85 0 0 1-1.84-.12Z"/>
-  </svg>
-);
 
 const openExternalLink = (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
   event.preventDefault();
@@ -32,7 +23,7 @@ function ContactPage() {
   const cards = [
     { Icon: Phone, label: t("contact.phone"), value: "+2 010 5085 2966", href: "tel:+201050852966", dir: "ltr" as const },
     { Icon: Mail, label: t("contact.email"), value: "hello@smilemaker.com", href: "mailto:hello@smilemaker.com", dir: "ltr" as const },
-    { Icon: MapPin, label: t("contact.address"), value: t("contact.addressValue"), href: mapsLink, external: true },
+    { Icon: MapPin, label: t("contact.address"), value: t("contact.addressValue"), href: SOCIAL_LINKS.maps, external: true },
   ];
 
   return (
@@ -89,9 +80,9 @@ function ContactPage() {
               <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">{t("contact.follow")}</p>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {[
-                  { Icon: Instagram, href: instagramLink, label: "Instagram", handle: "@smile_maker_clinic_store" },
-                  { Icon: Facebook, href: facebookLink, label: "Facebook", handle: "smilemakercare" },
-                  { Icon: TikTokIcon, href: tiktokLink, label: "TikTok", handle: "@smile.maker.co" },
+                  { Icon: Instagram, href: SOCIAL_LINKS.instagram, label: "Instagram", handle: "@smile_maker_clinic_store" },
+                  { Icon: Facebook, href: SOCIAL_LINKS.facebook, label: "Facebook", handle: "smilemakercare" },
+                  { Icon: TikTokIcon, href: SOCIAL_LINKS.tiktok, label: "TikTok", handle: "@smile.maker.co" },
                 ].map(({ Icon, href, label, handle }) => (
                   <a
                     key={label}
@@ -116,8 +107,8 @@ function ContactPage() {
           </div>
 
           <a
-            href={mapsLink}
-            onClick={openExternalLink(mapsLink)}
+            href={SOCIAL_LINKS.maps}
+            onClick={openExternalLink(SOCIAL_LINKS.maps)}
             target="_blank"
             rel="noopener noreferrer"
             className="lux-card overflow-hidden block group relative"
