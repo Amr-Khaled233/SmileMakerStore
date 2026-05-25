@@ -10,14 +10,12 @@ import { formatEGP } from "@/data/products";
 import { useEffect, useRef, useState, useCallback } from "react";
 
 import slide1 from "@/assets/h2o-flosser-1.jpeg";
-import slide2 from "@/assets/h2o-flosser-3.jpeg";
-import slide3 from "@/assets/electric-brush-1.jpeg";
-import slide4 from "@/assets/electric-brush-3.jpeg";
-import slide5 from "@/assets/ortho-kit-1.jpeg";
-import slide6 from "@/assets/l-shaped-1.jpeg";
-import slide7 from "@/assets/ortho-wax-main.jpeg";
+import slide2 from "@/assets/electric-brush-1.jpeg";
+import slide3 from "@/assets/ortho-kit-1.jpeg";
+import slide4 from "@/assets/l-shaped-1.jpeg";
+import slide5 from "@/assets/ortho-wax-main.jpeg";
 
-const SLIDES = [slide1, slide2, slide3, slide4, slide5, slide6, slide7];
+const SLIDES = [slide1, slide2, slide3, slide4, slide5];
 
 function ProductCarousel() {
   const [active, setActive] = useState(0);
@@ -143,7 +141,11 @@ function HomePage() {
             <h1 className="mt-6 text-4xl md:text-6xl lg:text-7xl font-display leading-[1.1]">
               {t("home.heroTitle.a")} <span className="text-gradient">{t("home.heroTitle.b")}</span>.
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed">{t("home.heroLead")}</p>
+            <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed hidden sm:block">{t("home.heroLead")}</p>
+            {/* Carousel shown on mobile only, in place of the paragraph */}
+            <div className="mt-6 sm:hidden">
+              <ProductCarousel />
+            </div>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/products" className="btn-primary">
                 {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
@@ -180,8 +182,8 @@ function HomePage() {
         <div className="arc-divider" />
       </section>
 
-      {/* Product image carousel */}
-      <section className="py-10 sm:py-14">
+      {/* Product image carousel — desktop only (mobile shows it inside the hero) */}
+      <section className="hidden sm:block py-10 sm:py-14">
         <div className="container-lux max-w-2xl">
           <div className="text-center mb-6">
             <p className="eyebrow">{t("home.heroBadge")}</p>
