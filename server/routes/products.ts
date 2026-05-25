@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { readDb, writeDb } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import type { DynamicProduct } from "../types.js";
+import type { DynamicProduct, StaticProductOverride, BundleOverride } from "../types.js";
 
 const router = Router();
 
@@ -14,13 +14,31 @@ router.get("/", async (_req, res) => {
   res.json(db.dynamicProducts ?? []);
 });
 
-// Get image overrides + hidden flags (public, used by frontend pages)
+// Get image overrides + hidden flags + text overrides + bundle overrides (public)
 router.get("/meta", async (_req, res) => {
   const db = await readDb();
   res.json({
     imageOverrides: db.productImageOverrides ?? {},
     hidden: db.productHidden ?? [],
+    staticOverrides: db.staticOverrides ?? {},
+    bundleOverrides: db.bundleOverrides ?? {},
   });
+});
+
+// Update bundle override (protected)
+router.patch("/bundles/:id", requireAuth, async (req, res) => {
+  const { titleEn, titleAr, taglineEn, taglineAr, items, discountPct } = req.body as Partial<BundleOverride>;
+  const db = await readDb();
+  if (!db.bundleOverrides[req.params.id]) db.bundleOverrides[req.params.id] = {};
+  const ov = db.bundleOverrides[req.params.id];
+  if (titleEn !== undefined) ov.titleEn = titleEn || undefined;
+  if (titleAr !== undefined) ov.titleAr = titleAr || undefined;
+  if (taglineEn !== undefined) ov.taglineEn = taglineEn || undefined;
+  if (taglineAr !== undefined) ov.taglineAr = taglineAr || undefined;
+  if (Array.isArray(items)) ov.items = items;
+  if (typeof discountPct === "number" && discountPct >= 0 && discountPct <= 100) ov.discountPct = discountPct;
+  await writeDb(db);
+  res.json({ success: true });
 });
 
 // ── Dynamic product CRUD (protected) ─────────────────────────────────────────
@@ -140,6 +158,19 @@ router.delete("/static/:slug/images/:idx", requireAuth, async (req, res) => {
 router.delete("/static/:slug/images", requireAuth, async (req, res) => {
   const db = await readDb();
   delete db.productImageOverrides[req.params.slug];
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Update text details (description, features) for a static product
+router.patch("/static/:slug/details", requireAuth, async (req, res) => {
+  const { description, descriptionAr, features } = req.body as Partial<StaticProductOverride>;
+  const db = await readDb();
+  if (!db.staticOverrides[req.params.slug]) db.staticOverrides[req.params.slug] = {};
+  const ov = db.staticOverrides[req.params.slug];
+  if (description !== undefined) ov.description = description?.trim() || undefined;
+  if (descriptionAr !== undefined) ov.descriptionAr = descriptionAr?.trim() || undefined;
+  if (Array.isArray(features)) ov.features = features;
   await writeDb(db);
   res.json({ success: true });
 });

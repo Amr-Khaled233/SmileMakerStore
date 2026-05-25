@@ -1,6 +1,6 @@
-import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct } from "../../server/types.js";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, StaticProductOverride, BundleOverride } from "../../server/types.js";
 
-export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct };
+export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, StaticProductOverride, BundleOverride };
 
 export type PublicInventoryStatus = {
   outOfStock: string[];
@@ -102,7 +102,7 @@ export const api = {
   getDynamicProducts: () =>
     req<DynamicProduct[]>("GET", "/products"),
   getProductsMeta: () =>
-    req<{ imageOverrides: Record<string, string[]>; hidden: string[] }>("GET", "/products/meta"),
+    req<{ imageOverrides: Record<string, string[]>; hidden: string[]; staticOverrides: Record<string, StaticProductOverride>; bundleOverrides: Record<string, BundleOverride> }>("GET", "/products/meta"),
 
   // Dynamic products (manager)
   createProduct: (token: string, data: Partial<DynamicProduct>) =>
@@ -125,6 +125,10 @@ export const api = {
     req<{ success: boolean }>("DELETE", `/products/static/${slug}/images`, undefined, token),
   setProductVisibility: (token: string, slug: string, hidden: boolean) =>
     req<{ success: boolean }>("PATCH", `/products/static/${slug}/visibility`, { hidden }, token),
+  updateStaticProductDetails: (token: string, slug: string, patch: Partial<StaticProductOverride>) =>
+    req<{ success: boolean }>("PATCH", `/products/static/${slug}/details`, patch, token),
+  updateBundle: (token: string, id: string, patch: Partial<BundleOverride>) =>
+    req<{ success: boolean }>("PATCH", `/products/bundles/${id}`, patch, token),
 
   // Free shipping window (public)
   getFreeShippingStatus: () =>

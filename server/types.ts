@@ -73,7 +73,23 @@ export type DynamicProduct = {
   price: number;
   salePrice?: number;
   images: string[]; // base64 data URLs
+  colors?: { id: string; label: { en: string; ar: string }; hex: string }[];
   outOfStock?: boolean;
+};
+
+export type BundleOverride = {
+  titleEn?: string;
+  titleAr?: string;
+  taglineEn?: string;
+  taglineAr?: string;
+  items?: string[]; // slugs — static or dynamic
+  discountPct?: number;
+};
+
+export type StaticProductOverride = {
+  description?: string;
+  descriptionAr?: string;
+  features?: { en: string; ar: string }[];
 };
 
 export type DbData = {
@@ -84,4 +100,6 @@ export type DbData = {
   dynamicProducts: DynamicProduct[];
   productImageOverrides: Record<string, string[]>; // slug -> base64 images
   productHidden: string[]; // slugs of hidden static products
+  staticOverrides: Record<string, StaticProductOverride>; // slug -> text/feature overrides
+  bundleOverrides: Record<string, BundleOverride>; // bundleId -> config overrides
 };

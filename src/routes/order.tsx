@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
 import { useT } from "@/lib/i18n";
-import { api, type PublicInventoryStatus, type Pricing } from "@/lib/api";
+import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type BundleOverride } from "@/lib/api";
 
 export const Route = createFileRoute("/order")({
   component: OrderPage,
@@ -23,10 +23,25 @@ const orderSchema = z.object({
 type Quantities = Partial<Record<ProductSlug, number>>;
 type ColorQtyMap = Partial<Record<ProductSlug, Record<string, number>>>;
 
+// Unified shape for bundle/line resolution (works for static and dynamic products)
+type DisplayProduct = {
+  slug: string;
+  title: string;
+  tagline: { en: string; ar: string };
+  image: string;
+  price: number;
+  salePrice?: number;
+  outOfStock: boolean;
+  outOfStockColors?: string[];
+  colors?: { id: string; label: { en: string; ar: string }; hex: string }[];
+};
+
 function OrderPage() {
   const { t, tl, lang } = useT();
   const [standaloneQty, setStandaloneQty] = useState<Quantities>({});
   const [standaloneColorQty, setStandaloneColorQty] = useState<ColorQtyMap>({});
+  const [dynQty, setDynQty] = useState<Record<string, number>>({});
+  const [dynColorQty, setDynColorQty] = useState<Record<string, Record<string, number>>>({});
   const [zoneId, setZoneId] = useState(SHIPPING_ZONES[0].id);
   const [promo, setPromo] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number } | null>(null);
@@ -38,14 +53,17 @@ function OrderPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [freeShippingActive, setFreeShippingActive] = useState(false);
   const [bundleQty, setBundleQty] = useState<Record<string, number>>({});
-  // bundleId → per-instance array → slug → colorId
   const [bundleColorSelections, setBundleColorSelections] = useState<Record<string, Record<string, string>[]>>({});
   const [colorErrorBundles, setColorErrorBundles] = useState<Set<string>>(new Set());
   const bundleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
+  const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
 
   useEffect(() => { api.getInventoryStatus().then(setInventoryStatus).catch(() => {}); }, []);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getFreeShippingStatus().then((r) => setFreeShippingActive(r.active)).catch(() => {}); }, []);
+  useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
+  useEffect(() => { api.getProductsMeta().then((m) => setBundleOverrides(m.bundleOverrides)).catch(() => {}); }, []);
 
   // Merge static product data with live inventory status and pricing overrides
   const products = useMemo(
@@ -61,6 +79,35 @@ function OrderPage() {
         };
       }),
     [inventoryStatus, pricing],
+  );
+
+  // Unified display list for bundle resolution (static + dynamic)
+  const allDisplayProducts = useMemo<DisplayProduct[]>(
+    () => [
+      ...products.map((p) => ({
+        slug: p.slug,
+        title: p.title,
+        tagline: p.tagline as { en: string; ar: string },
+        image: p.image,
+        price: p.price,
+        salePrice: p.salePrice,
+        outOfStock: p.outOfStock ?? false,
+        outOfStockColors: p.outOfStockColors,
+        colors: p.colors,
+      })),
+      ...dynamicProducts.map((p) => ({
+        slug: p.slug,
+        title: p.title,
+        tagline: { en: p.description || p.title, ar: p.descriptionAr || p.titleAr },
+        image: p.images[0] ?? "",
+        price: p.price,
+        salePrice: p.salePrice,
+        outOfStock: p.outOfStock ?? false,
+        outOfStockColors: undefined,
+        colors: p.colors,
+      })),
+    ],
+    [products, dynamicProducts],
   );
 
   const [confirmed, setConfirmed] = useState<null | {
@@ -91,13 +138,30 @@ function OrderPage() {
   const standaloneColorTotal = (slug: ProductSlug) =>
     Object.values(standaloneColorQty[slug] ?? {}).reduce((s, q) => s + q, 0);
 
+  // Dynamic product qty handlers
+  const incDyn = (slug: string) => setDynQty((q) => ({ ...q, [slug]: (q[slug] ?? 0) + 1 }));
+  const decDyn = (slug: string) => setDynQty((q) => ({ ...q, [slug]: Math.max(0, (q[slug] ?? 0) - 1) }));
+  const incDynColor = (slug: string, colorId: string) =>
+    setDynColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: (m[slug]?.[colorId] ?? 0) + 1 } }));
+  const decDynColor = (slug: string, colorId: string) =>
+    setDynColorQty((m) => ({ ...m, [slug]: { ...(m[slug] ?? {}), [colorId]: Math.max(0, (m[slug]?.[colorId] ?? 0) - 1) } }));
+  const dynColorTotal = (slug: string) => Object.values(dynColorQty[slug] ?? {}).reduce((s, q) => s + q, 0);
+
   const dynamicBundles = useMemo(
     () =>
       BUNDLES.map((b) => {
-        const ov = pricing.bundles.find((x) => x.id === b.id);
-        return { ...b, fixedPrice: ov?.price };
+        const priceOv = pricing.bundles.find((x) => x.id === b.id);
+        const configOv = bundleOverrides[b.id];
+        return {
+          ...b,
+          title: { en: configOv?.titleEn || b.title.en, ar: configOv?.titleAr || b.title.ar },
+          tagline: { en: configOv?.taglineEn || b.tagline.en, ar: configOv?.taglineAr || b.tagline.ar },
+          items: configOv?.items ?? b.items,
+          discountPct: configOv?.discountPct ?? b.discountPct,
+          fixedPrice: priceOv?.price,
+        };
       }),
-    [pricing],
+    [pricing, bundleOverrides],
   );
   const dynamicPromoCodes = useMemo(
     (): Array<{ code: string; pct: number }> =>
@@ -108,18 +172,16 @@ function OrderPage() {
   );
 
   // Matched bundles: explicitly selected + none of the items are OOS
-  // No qty requirement — bundle items contribute to qty themselves
   const matchedBundles = useMemo(
     () => dynamicBundles.filter(
       (b) =>
         (bundleQty[b.id] ?? 0) > 0 &&
-        b.items.every((s) => !products.find((p) => p.slug === s)?.outOfStock),
+        b.items.every((s) => !allDisplayProducts.find((p) => p.slug === s)?.outOfStock),
     ),
-    [bundleQty, products, dynamicBundles],
+    [bundleQty, allDisplayProducts, dynamicBundles],
   );
 
-  // Lines = bundle item contributions (1 per product per matched bundle, no color)
-  //       + standalone additions, merged by key so same product stacks correctly
+  // Lines = bundle item contributions + standalone static + standalone dynamic
   const lines = useMemo(() => {
     type Line = { slug: string; colorId?: string; title: string; qty: number; lineTotal: number };
     const acc = new Map<string, Line>();
@@ -128,21 +190,22 @@ function OrderPage() {
       acc.set(key, ex ? { ...ex, qty: ex.qty + entry.qty, lineTotal: ex.lineTotal + entry.lineTotal } : entry);
     };
 
-    // Bundle items — iterate each instance separately so different colors stack correctly
+    // Bundle items (static or dynamic product slugs)
     for (const b of matchedBundles) {
       const bQty = bundleQty[b.id] ?? 1;
       for (let i = 0; i < bQty; i++) {
         for (const slug of b.items) {
-          const p = products.find((x) => x.slug === slug)!;
+          const p = allDisplayProducts.find((x) => x.slug === slug);
+          if (!p) continue;
           const selectedColorId = p.colors?.length ? bundleColorSelections[b.id]?.[i]?.[slug] : undefined;
           const color = selectedColorId ? p.colors?.find((c) => c.id === selectedColorId) : undefined;
           const key = selectedColorId ? `${slug}__${selectedColorId}` : slug;
-          add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: 1, lineTotal: effectivePrice(p) });
+          add(key, { slug, colorId: selectedColorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: 1, lineTotal: p.salePrice ?? p.price });
         }
       }
     }
 
-    // Standalone items
+    // Static standalone items
     for (const p of products) {
       if (p.colors?.length) {
         for (const [colorId, q] of Object.entries(standaloneColorQty[p.slug] ?? {})) {
@@ -157,8 +220,25 @@ function OrderPage() {
       }
     }
 
+    // Dynamic standalone items
+    for (const p of dynamicProducts) {
+      if (p.outOfStock) continue;
+      const unitPrice = p.salePrice ?? p.price;
+      if (p.colors?.length) {
+        for (const [colorId, q] of Object.entries(dynColorQty[p.slug] ?? {})) {
+          if (q > 0) {
+            const color = p.colors.find((c) => c.id === colorId);
+            add(`${p.slug}__${colorId}`, { slug: p.slug, colorId, title: p.title + (color ? ` — ${tl(color.label)}` : ""), qty: q, lineTotal: unitPrice * q });
+          }
+        }
+      } else {
+        const q = dynQty[p.slug] ?? 0;
+        if (q > 0) add(p.slug, { slug: p.slug, title: p.title, qty: q, lineTotal: unitPrice * q });
+      }
+    }
+
     return Array.from(acc.values()).filter((l) => l.qty > 0);
-  }, [matchedBundles, bundleColorSelections, standaloneQty, standaloneColorQty, tl, products]);
+  }, [matchedBundles, bundleColorSelections, standaloneQty, standaloneColorQty, dynQty, dynColorQty, tl, products, dynamicProducts, allDisplayProducts, bundleQty]);
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
@@ -191,7 +271,7 @@ function OrderPage() {
     return matchedBundles.reduce((sum, b) => {
       const bQty = bundleQty[b.id] ?? 1;
       const itemsSum = b.items
-        .map((s) => effectivePrice(products.find((p) => p.slug === s)!))
+        .map((s) => { const p = allDisplayProducts.find((x) => x.slug === s); return p ? (p.salePrice ?? p.price) : 0; })
         .reduce((a, c) => a + c, 0);
       const discount =
         b.fixedPrice !== undefined
@@ -199,7 +279,7 @@ function OrderPage() {
           : Math.round((itemsSum * b.discountPct) / 100);
       return sum + discount * bQty;
     }, 0);
-  }, [matchedBundles, products, bundleQty]);
+  }, [matchedBundles, allDisplayProducts, bundleQty]);
 
   const promoDiscount = appliedPromo
     ? Math.round(((subtotal - bundleDiscount) * appliedPromo.pct) / 100)
@@ -310,6 +390,8 @@ function OrderPage() {
     setConfirmed(null);
     setStandaloneQty({});
     setStandaloneColorQty({});
+    setDynQty({});
+    setDynColorQty({});
     setBundleQty({});
     setBundleColorSelections({});
     setForm({ name: "", phone: "", email: "", address: "", city: "", notes: "" });
@@ -426,11 +508,11 @@ function OrderPage() {
               <p className="text-sm text-muted-foreground mb-5">{t("products.bundles.lead")}</p>
               <div className="grid sm:grid-cols-3 gap-3">
                 {dynamicBundles.map((b) => {
-                  const items = b.items.map((s) => products.find((p) => p.slug === s)!);
-                  const total = items.reduce((sum, i) => sum + effectivePrice(i), 0);
+                  const items = b.items.map((s) => allDisplayProducts.find((p) => p.slug === s)).filter(Boolean) as DisplayProduct[];
+                  const total = items.reduce((sum, i) => sum + (i.salePrice ?? i.price), 0);
                   const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
                   const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
-                  const bundleOos = b.items.some((s) => products.find((p) => p.slug === s)?.outOfStock === true);
+                  const bundleOos = b.items.some((s) => allDisplayProducts.find((p) => p.slug === s)?.outOfStock === true);
                   const qty = bundleQty[b.id] ?? 0;
                   const isActive = !bundleOos && qty > 0;
                   const incBundle = () => setBundleQty((q) => ({ ...q, [b.id]: qty + 1 }));
@@ -440,7 +522,7 @@ function OrderPage() {
                     setBundleColorSelections((prev) => ({ ...prev, [b.id]: (prev[b.id] ?? []).slice(0, nq) }));
                     if (nq === 0) setColorErrorBundles((prev) => { const n = new Set(prev); n.delete(b.id); return n; });
                   };
-                  const colorProductsInBundle = items.filter((i) => i.colors?.length);
+                  const colorProductsInBundle = items.filter((i) => (i.colors?.length ?? 0) > 0);
                   const allColorsSelected = Array.from({ length: qty }, (_, i) =>
                     colorProductsInBundle.every((cp) => !!bundleColorSelections[b.id]?.[i]?.[cp.slug])
                   ).every(Boolean);
@@ -679,6 +761,81 @@ function OrderPage() {
                   );
                 })}
               </div>
+
+              {/* ── Dynamic products ── */}
+              {dynamicProducts.filter((p) => !p.outOfStock).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border/60 divide-y divide-border">
+                  {dynamicProducts.map((p) => {
+                    if (p.outOfStock) return null;
+                    const hasColors = (p.colors?.length ?? 0) > 0;
+                    const unitPrice = p.salePrice ?? p.price;
+                    const onSale = p.salePrice != null;
+                    const dynBundleContribs = matchedBundles.filter((b) => b.items.includes(p.slug));
+                    const standaloneQ = hasColors ? dynColorTotal(p.slug) : (dynQty[p.slug] ?? 0);
+                    const totalQ = dynBundleContribs.length + standaloneQ;
+                    return (
+                      <div key={p.id} className="py-4">
+                        <div className="flex items-start gap-3">
+                          <div className="h-16 w-16 rounded-xl bg-soft border border-border flex items-center justify-center overflow-hidden shrink-0">
+                            {p.images[0] ? (
+                              <img src={p.images[0]} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
+                            ) : (
+                              <ShoppingBag className="h-6 w-6 text-muted-foreground/40" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-ink leading-snug">{lang === "ar" ? p.titleAr : p.title}</p>
+                              {totalQ > 0 && <span className="text-[10px] font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? `× ${totalQ} في الكارت` : `× ${totalQ} in cart`}</span>}
+                            </div>
+                            {p.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{lang === "ar" ? (p.descriptionAr || p.description) : p.description}</p>}
+                            <div className="mt-1 flex items-center gap-2 flex-wrap">
+                              <span className="text-sm price-tag text-gradient">{formatEGP(unitPrice, lang)}</span>
+                              {onSale && <span className="text-[11px] text-muted-foreground line-through font-sans">{formatEGP(p.price, lang)}</span>}
+                            </div>
+                          </div>
+                          {!hasColors && (
+                            <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-1 shrink-0">
+                              <button type="button" onClick={() => decDyn(p.slug)} disabled={standaloneQ === 0} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <span className="w-10 text-center text-sm font-medium">{standaloneQ}</span>
+                              <button type="button" onClick={() => incDyn(p.slug)} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {hasColors && (
+                          <div className="mt-3 ms-[76px] space-y-2">
+                            <p className="text-xs text-muted-foreground">{lang === "ar" ? "اختر اللون والكمية:" : "Choose color & qty:"}</p>
+                            {p.colors!.map((c) => {
+                              const cq = dynColorQty[p.slug]?.[c.id] ?? 0;
+                              return (
+                                <div key={c.id} className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="h-4 w-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }} />
+                                    <span className="text-xs text-ink">{tl(c.label)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5 shrink-0">
+                                    <button type="button" onClick={() => decDynColor(p.slug, c.id)} disabled={cq === 0} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                                      <Minus className="h-3.5 w-3.5" />
+                                    </button>
+                                    <span className="w-7 text-center text-sm font-medium">{cq}</span>
+                                    <button type="button" onClick={() => incDynColor(p.slug, c.id)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
+                                      <Plus className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {matchedBundles.length > 0 && (
                 <div className="mt-4 rounded-xl bg-soft border border-border p-4 flex items-start gap-3">

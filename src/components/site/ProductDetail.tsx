@@ -3,7 +3,7 @@ import { Star, ShoppingCart, Zap, ShieldCheck, Sparkles, Check } from "lucide-re
 import { useState, useEffect, type ReactNode } from "react";
 import { useT, type L } from "@/lib/i18n";
 import { formatEGP } from "@/data/products";
-import { api, type Pricing } from "@/lib/api";
+import { api, type Pricing, type StaticProductOverride } from "@/lib/api";
 
 export type ProductRelated = {
   to:
@@ -44,17 +44,23 @@ export function ProductDetail(p: ProductDetailProps) {
   const [activeImg, setActiveImg] = useState(p.image);
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dbImages, setDbImages] = useState<string[] | null>(null);
+  const [textOverride, setTextOverride] = useState<StaticProductOverride | null>(null);
 
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => {
     api.getProductsMeta().then((meta) => {
       const imgs = meta.imageOverrides[p.slug];
-      if (imgs?.length) {
-        setDbImages(imgs);
-        setActiveImg(imgs[0]);
-      }
+      if (imgs?.length) { setDbImages(imgs); setActiveImg(imgs[0]); }
+      const ov = meta.staticOverrides?.[p.slug];
+      if (ov) setTextOverride(ov);
     }).catch(() => {});
   }, [p.slug]);
+
+  // Apply text overrides if set in DB
+  const displayDescription: L = textOverride
+    ? { en: textOverride.description || (p.description as L).en, ar: textOverride.descriptionAr || (p.description as L).ar }
+    : p.description as L;
+  const displayFeatures: L[] = (textOverride?.features?.length ? textOverride.features : null) ?? p.features;
 
   // Use DB images if available, otherwise fall back to static gallery
   const gallery: { src: string; alt: string }[] = dbImages
@@ -126,10 +132,10 @@ export function ProductDetail(p: ProductDetailProps) {
               <span className="pb-2 text-muted-foreground text-sm">· {t("order.shippingAtCheckout")}</span>
             </div>
 
-            <p className="mt-6 leading-relaxed text-muted-foreground">{tl(p.description)}</p>
+            <p className="mt-6 leading-relaxed text-muted-foreground">{tl(displayDescription)}</p>
 
             <ul className="mt-6 grid sm:grid-cols-2 gap-2">
-              {p.features.map((f, i) => (
+              {displayFeatures.map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <Check className="h-4 w-4 text-turquoise mt-0.5 shrink-0" />
                   <span>{tl(f)}</span>
