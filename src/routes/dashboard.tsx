@@ -1412,7 +1412,9 @@ function ProductsSection({ token }: { token: string }) {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [primaryUploadingFor, setPrimaryUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const pendingProductId = useRef<string | null>(null);
 
   // Static products
@@ -1492,11 +1494,19 @@ function ProductsSection({ token }: { token: string }) {
   };
 
   const openImagePicker = (id: string) => { pendingProductId.current = id; fileInputRef.current?.click(); };
+  const openPrimaryImagePicker = (id: string) => { pendingProductId.current = id; primaryFileInputRef.current?.click(); };
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; const id = pendingProductId.current;
     if (!file || !id) return; e.target.value = ""; setUploadingFor(id);
     const reader = new FileReader();
     reader.onload = async (ev) => { await api.addProductImage(token, id, ev.target?.result as string).catch(() => {}); await load(); setUploadingFor(null); };
+    reader.readAsDataURL(file);
+  };
+  const onPrimaryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; const id = pendingProductId.current;
+    if (!file || !id) return; e.target.value = ""; setPrimaryUploadingFor(id);
+    const reader = new FileReader();
+    reader.onload = async (ev) => { await api.setProductPrimaryImage(token, id, ev.target?.result as string).catch(() => {}); await load(); setPrimaryUploadingFor(null); };
     reader.readAsDataURL(file);
   };
   const removeImage = async (id: string, idx: number) => {
@@ -1606,6 +1616,7 @@ function ProductsSection({ token }: { token: string }) {
   return (
     <div className="space-y-6">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+      <input ref={primaryFileInputRef} type="file" accept="image/*" className="hidden" onChange={onPrimaryFileChange} />
       <input ref={staticFileInputRef} type="file" accept="image/*" className="hidden" onChange={onStaticFileChange} />
 
       {/* Sub-tab switcher */}
@@ -1747,25 +1758,58 @@ function ProductsSection({ token }: { token: string }) {
                         <Trash2 className="h-3.5 w-3.5" /> حذف
                       </button>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-border">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs text-muted-foreground">الصور ({p.images.length})</p>
-                        <button onClick={() => openImagePicker(p.id)} disabled={uploadingFor === p.id}
-                          className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
-                          {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة"}
-                        </button>
-                      </div>
-                      {p.images.length === 0 ? <p className="text-xs text-muted-foreground">لا توجد صور بعد</p> : (
-                        <div className="flex flex-wrap gap-3">
-                          {p.images.map((src, idx) => (
-                            <div key={idx} className="relative group">
-                              <img src={src} alt="" className="h-20 w-20 object-cover rounded-xl border border-border" />
-                              <button onClick={() => removeImage(p.id, idx)}
-                                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-                            </div>
-                          ))}
+                    <div className="mt-4 pt-4 border-t border-border space-y-4">
+                      {/* Primary image */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-ink">الصورة الأساسية</p>
+                          <button onClick={() => openPrimaryImagePicker(p.id)} disabled={primaryUploadingFor === p.id}
+                            className="btn-ghost text-xs py-1 px-3 disabled:opacity-50">
+                            {primaryUploadingFor === p.id ? "جاري الرفع..." : p.images[0] ? "استبدال" : "+ رفع صورة"}
+                          </button>
                         </div>
-                      )}
+                        {p.images[0] ? (
+                          <div className="relative group w-fit">
+                            <img src={p.images[0]} alt="" className="h-28 w-28 object-cover rounded-xl border-2 border-deep-blue/30" />
+                            <button onClick={() => removeImage(p.id, 0)}
+                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => openPrimaryImagePicker(p.id)} disabled={primaryUploadingFor === p.id}
+                            className="h-28 w-28 rounded-xl border-2 border-dashed border-border flex items-center justify-center text-xs text-muted-foreground hover:border-deep-blue/40 hover:bg-soft transition-colors disabled:opacity-50">
+                            {primaryUploadingFor === p.id ? "..." : "+ صورة"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Gallery images */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-ink">
+                            صور فرعية {p.images.length > 1 ? `(${p.images.length - 1})` : ""}
+                          </p>
+                          <button onClick={() => openImagePicker(p.id)} disabled={uploadingFor === p.id}
+                            className="btn-ghost text-xs py-1 px-3 disabled:opacity-50">
+                            {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة فرعية"}
+                          </button>
+                        </div>
+                        {p.images.length <= 1 ? (
+                          <p className="text-xs text-muted-foreground">لا توجد صور فرعية بعد</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {p.images.slice(1).map((src, relIdx) => {
+                              const idx = relIdx + 1;
+                              return (
+                                <div key={idx} className="relative group">
+                                  <img src={src} alt="" className="h-16 w-16 object-cover rounded-lg border border-border" />
+                                  <button onClick={() => removeImage(p.id, idx)}
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

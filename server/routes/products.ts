@@ -113,6 +113,21 @@ router.post("/:id/images", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Set / replace primary image (always index 0)
+router.put("/:id/images/primary", requireAuth, async (req, res) => {
+  const { image } = req.body as { image?: string };
+  if (!image || !image.startsWith("data:image/")) {
+    res.status(400).json({ error: "Invalid image data" }); return;
+  }
+  const db = await readDb();
+  const product = db.dynamicProducts.find((p) => p.id === req.params.id);
+  if (!product) { res.status(404).json({ error: "Not found" }); return; }
+  if (product.images.length === 0) product.images.push(image);
+  else product.images[0] = image;
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 router.delete("/:id/images/:idx", requireAuth, async (req, res) => {
   const idx = Number(req.params.idx);
   const db = await readDb();

@@ -113,6 +113,8 @@ export const api = {
     req<{ success: boolean }>("PATCH", `/products/${id}`, patch, token),
   addProductImage: (token: string, id: string, image: string) =>
     req<{ success: boolean }>("POST", `/products/${id}/images`, { image }, token),
+  setProductPrimaryImage: (token: string, id: string, image: string) =>
+    req<{ success: boolean }>("PUT", `/products/${id}/images/primary`, { image }, token),
   removeProductImage: (token: string, id: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/products/${id}/images/${idx}`, undefined, token),
 
