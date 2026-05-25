@@ -972,12 +972,166 @@ function PricingSection({ token }: { token: string }) {
   );
 }
 
+// ─── Analytics Section ───────────────────────────────────────────────────────
+
+const CHART_GRADIENTS = [
+  "from-turquoise to-deep-blue",
+  "from-deep-blue to-violet-500",
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-500",
+  "from-pink-400 to-rose-500",
+];
+
+function AnalyticsSection({ orders }: { orders: Order[] }) {
+  const deliveredOrders = useMemo(
+    () => [...orders].filter((o) => o.status === "delivered").sort((a, b) => b.createdAt - a.createdAt),
+    [orders]
+  );
+
+  // Aggregate demand from ALL orders (shows true market pressure)
+  const productStats = useMemo(() => {
+    const map = new Map<string, { title: string; units: number; revenue: number }>();
+    for (const order of orders) {
+      for (const item of order.items ?? []) {
+        const ex = map.get(item.slug) ?? { title: item.title, units: 0, revenue: 0 };
+        map.set(item.slug, { title: item.title, units: ex.units + item.qty, revenue: ex.revenue + item.lineTotal });
+      }
+    }
+    return [...map.values()].sort((a, b) => b.units - a.units);
+  }, [orders]);
+
+  // City distribution from ALL orders
+  const topCities = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) map.set(o.city, (map.get(o.city) ?? 0) + 1);
+    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [orders]);
+
+  const maxUnits = productStats[0]?.units ?? 1;
+  const maxCityCount = topCities[0]?.[1] ?? 1;
+  const deliveredRevenue = deliveredOrders.reduce((s, o) => s + o.total, 0);
+  const avgOrder = deliveredOrders.length > 0 ? Math.round(deliveredRevenue / deliveredOrders.length) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="أوردرات مُسلَّمة"   value={deliveredOrders.length}                          icon={CheckCircle2} />
+        <StatCard label="إيرادات مؤكدة"     value={deliveredOrders.length ? formatEGP(deliveredRevenue) : "—"} icon={TrendingUp} accent />
+        <StatCard label="متوسط الأوردر"     value={avgOrder ? formatEGP(avgOrder) : "—"}              icon={Tag} />
+        <StatCard label="أكثر مدينة طلباً"  value={topCities[0]?.[0] ?? "—"} sub={topCities[0] ? `${topCities[0][1]} أوردر` : undefined} icon={Package} />
+      </div>
+
+      {/* Product demand chart */}
+      <div className="lux-card p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <TrendingUp className="h-5 w-5 text-deep-blue" />
+          <h3 className="font-display text-xl">أكثر المنتجات طلباً</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-5">
+          من جميع الأوردرات — قيد الانتظار + الشحن + المُسلَّمة
+        </p>
+        {productStats.length === 0 ? (
+          <p className="text-center py-10 text-sm text-muted-foreground">لا يوجد أوردرات بعد</p>
+        ) : (
+          <div className="space-y-4">
+            {productStats.map((p, i) => (
+              <div key={p.title}>
+                <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-muted-foreground w-6 shrink-0 text-center">#{i + 1}</span>
+                    <span className="text-sm font-medium text-ink truncate" dir="ltr">{p.title}</span>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 text-xs">
+                    <span className="font-semibold text-ink">{p.units} وحدة</span>
+                    <span className="text-muted-foreground">{formatEGP(p.revenue)}</span>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full bg-soft overflow-hidden">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                    style={{ width: `${Math.max(4, Math.round((p.units / maxUnits) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* City distribution */}
+      {topCities.length > 0 && (
+        <div className="lux-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Package className="h-5 w-5 text-deep-blue" />
+            <h3 className="font-display text-xl">التوزيع الجغرافي</h3>
+            <span className="text-xs text-muted-foreground ms-auto">من جميع الأوردرات</span>
+          </div>
+          <div className="space-y-3">
+            {topCities.map(([city, count], i) => (
+              <div key={city}>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-ink font-medium">{city}</span>
+                  <span className="text-xs text-muted-foreground">{count} أوردر · {Math.round((count / orders.length) * 100)}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-soft overflow-hidden">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                    style={{ width: `${Math.max(4, Math.round((count / maxCityCount) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delivered orders list */}
+      <div className="lux-card p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <h3 className="font-display text-xl">الأوردرات المُسلَّمة</h3>
+          <span className="ms-auto text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
+            {deliveredOrders.length}
+          </span>
+        </div>
+        {deliveredOrders.length === 0 ? (
+          <p className="text-center py-10 text-sm text-muted-foreground">
+            لا يوجد أوردرات مُسلَّمة بعد — اسحب أوردر لعمود "تم الاستلام" أو غيّر الحالة من داخله
+          </p>
+        ) : (
+          <div className="divide-y divide-border">
+            {deliveredOrders.map((o) => (
+              <div key={o.id} className="flex items-start gap-3 py-3 text-sm flex-wrap">
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-ink text-xs" dir="ltr">{o.id}</span>
+                    <span className="font-medium text-ink">{o.name}</span>
+                    <span className="text-xs text-muted-foreground">{o.city}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(o.items ?? []).map((it) => `${it.title} ×${it.qty}`).join(" · ")}
+                  </p>
+                </div>
+                <div className="text-end shrink-0">
+                  <p className="price-tag text-sm text-deep-blue">{formatEGP(o.total)}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("ar-EG")}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "inventory" | "pricing">("orders");
+  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics">("orders");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
@@ -1119,12 +1273,13 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-white border border-border rounded-2xl p-1 w-fit">
+        <div className="flex flex-wrap gap-1 bg-white border border-border rounded-2xl p-1 w-fit">
           {(
             [
               { key: "orders",    label: "الأوردرات" },
               { key: "inventory", label: "المخزون"   },
               { key: "pricing",   label: "الأسعار"   },
+              { key: "analytics", label: "التحليلات" },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -1170,12 +1325,11 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
             {loading ? (
               <div className="text-center py-16 text-muted-foreground">جاري التحميل...</div>
             ) : (
-              <div className="grid lg:grid-cols-3 gap-4">
+              <div className="grid lg:grid-cols-2 gap-4">
                 {(
                   [
                     { key: "pending"    as OrderStatus, orders: pendingOrders,    empty: "انتظار أوردر جديد..." },
                     { key: "dispatched" as OrderStatus, orders: dispatchedOrders, empty: "اسحب هنا لما تسلّمه للشحن" },
-                    { key: "delivered"  as OrderStatus, orders: deliveredOrders,  empty: "اسحب هنا لما يوصل للعميل" },
                   ] as const
                 ).map(({ key, orders: colOrders, empty }) => {
                   const cfg = STATUS_CONFIG[key];
@@ -1255,6 +1409,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
         {/* Pricing tab */}
         {tab === "pricing" && <PricingSection token={token} />}
+
+        {/* Analytics tab */}
+        {tab === "analytics" && <AnalyticsSection orders={orders} />}
       </div>
     </div>
   );
