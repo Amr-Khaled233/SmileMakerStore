@@ -2035,8 +2035,7 @@ function ProductsSection({ token }: { token: string }) {
 
   const saveUserBundle = async () => {
     if (!editingUserBundleId) return;
-    const price = Number(editUserBundleForm.price);
-    if (!editUserBundleForm.titleEn.trim() || !editUserBundleForm.titleAr.trim() || editUserBundleForm.items.length === 0 || isNaN(price) || price < 0) return;
+    if (!editUserBundleForm.titleEn.trim() || !editUserBundleForm.titleAr.trim() || editUserBundleForm.items.length === 0) return;
     setSavingUserBundle(true);
     await api.updateDynamicBundle(token, editingUserBundleId, {
       titleEn: editUserBundleForm.titleEn.trim(),
@@ -2044,7 +2043,7 @@ function ProductsSection({ token }: { token: string }) {
       taglineEn: editUserBundleForm.taglineEn.trim() || undefined,
       taglineAr: editUserBundleForm.taglineAr.trim() || undefined,
       items: editUserBundleForm.items,
-      price,
+      // price intentionally omitted — edit from Pricing tab only
     }).catch(() => {});
     await load();
     setSavingUserBundle(false);
@@ -2711,6 +2710,14 @@ function ProductsSection({ token }: { token: string }) {
           <div className="space-y-4">
             {userBundles.map((b) => {
               const isEditing = editingUserBundleId === b.id;
+              const itemsSum = b.items.reduce((sum, slug) => {
+                const sp = PRODUCTS.find((p) => p.slug === slug);
+                if (sp) return sum + (sp.salePrice ?? sp.price);
+                const dp = products.find((p) => p.slug === slug);
+                if (dp) return sum + (dp.salePrice ?? dp.price);
+                return sum;
+              }, 0);
+              const discountPct = itemsSum > b.price ? Math.round(((itemsSum - b.price) / itemsSum) * 100) : 0;
               return (
                 <div key={b.id} className="lux-card p-5">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -2718,7 +2725,13 @@ function ProductsSection({ token }: { token: string }) {
                       <p className="font-display text-lg">{b.titleAr}</p>
                       {b.taglineAr && <p className="text-xs text-muted-foreground mt-0.5">{b.taglineAr}</p>}
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs font-medium text-deep-blue">{b.price} جنيه</span>
+                        <span className="text-xs font-medium text-deep-blue">{b.price.toLocaleString("ar-EG")} جنيه</span>
+                        {itemsSum > b.price && (
+                          <>
+                            <span className="text-xs text-muted-foreground line-through">{itemsSum.toLocaleString("ar-EG")} جنيه</span>
+                            <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">−{discountPct}%</span>
+                          </>
+                        )}
                         <span className="text-xs text-muted-foreground">·</span>
                         <span className="text-xs text-muted-foreground">{b.items.length} منتجات</span>
                       </div>
@@ -2764,12 +2777,8 @@ function ProductsSection({ token }: { token: string }) {
                           <input className="lux-input text-sm" value={editUserBundleForm.taglineAr} dir="rtl"
                             onChange={(e) => setEditUserBundleForm((f) => ({ ...f, taglineAr: e.target.value }))} />
                         </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">السعر (جنيه)</label>
-                          <input className="lux-input text-sm" type="number" min={0} value={editUserBundleForm.price}
-                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, price: e.target.value }))} />
-                        </div>
                       </div>
+                      <p className="text-xs text-muted-foreground">لتعديل السعر، اذهب إلى تبويب الأسعار.</p>
                       <div>
                         <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
                         <div className="flex flex-wrap gap-2">
