@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { readDb, writeDb } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { uploadImage, uploadImages } from "../lib/cloudinary.js";
 import type { DynamicProduct, StaticProductOverride, BundleOverride } from "../types.js";
 
 const router = Router();
@@ -105,10 +106,11 @@ router.post("/:id/images", requireAuth, async (req, res) => {
   if (!image || !image.startsWith("data:image/")) {
     res.status(400).json({ error: "Invalid image data" }); return;
   }
+  const url = await uploadImage(image);
   const db = await readDb();
   const product = db.dynamicProducts.find((p) => p.id === req.params.id);
   if (!product) { res.status(404).json({ error: "Not found" }); return; }
-  product.images.push(image);
+  product.images.push(url);
   await writeDb(db);
   res.json({ success: true });
 });
@@ -119,11 +121,12 @@ router.put("/:id/images/primary", requireAuth, async (req, res) => {
   if (!image || !image.startsWith("data:image/")) {
     res.status(400).json({ error: "Invalid image data" }); return;
   }
+  const url = await uploadImage(image);
   const db = await readDb();
   const product = db.dynamicProducts.find((p) => p.id === req.params.id);
   if (!product) { res.status(404).json({ error: "Not found" }); return; }
-  if (product.images.length === 0) product.images.push(image);
-  else product.images[0] = image;
+  if (product.images.length === 0) product.images.push(url);
+  else product.images[0] = url;
   await writeDb(db);
   res.json({ success: true });
 });
@@ -147,8 +150,9 @@ router.delete("/:id/images/:idx", requireAuth, async (req, res) => {
 router.put("/static/:slug/images", requireAuth, async (req, res) => {
   const { images } = req.body as { images?: string[] };
   if (!Array.isArray(images)) { res.status(400).json({ error: "images must be an array" }); return; }
+  const urls = await uploadImages(images.filter(Boolean));
   const db = await readDb();
-  db.productImageOverrides[req.params.slug] = images.filter(Boolean);
+  db.productImageOverrides[req.params.slug] = urls;
   await writeDb(db);
   res.json({ success: true });
 });
@@ -159,9 +163,10 @@ router.post("/static/:slug/images", requireAuth, async (req, res) => {
   if (!image || !image.startsWith("data:image/")) {
     res.status(400).json({ error: "Invalid image data" }); return;
   }
+  const url = await uploadImage(image);
   const db = await readDb();
   if (!db.productImageOverrides[req.params.slug]) db.productImageOverrides[req.params.slug] = [];
-  db.productImageOverrides[req.params.slug].push(image);
+  db.productImageOverrides[req.params.slug].push(url);
   await writeDb(db);
   res.json({ success: true });
 });
@@ -200,12 +205,13 @@ router.put("/static/:slug/images/:idx", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Invalid image data" }); return;
   }
   const idx = Number(req.params.idx);
+  const url = await uploadImage(image);
   const db = await readDb();
   const imgs = db.productImageOverrides[req.params.slug];
   if (!imgs || isNaN(idx) || idx < 0 || idx >= imgs.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
-  imgs[idx] = image;
+  imgs[idx] = url;
   await writeDb(db);
   res.json({ success: true });
 });

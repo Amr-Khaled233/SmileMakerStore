@@ -1,6 +1,22 @@
 import { MongoClient, type Db } from "mongodb";
 import type { DbData, FreeShippingWindow } from "./types.js";
 
+class Mutex {
+  private _queue: Promise<void> = Promise.resolve();
+  run<T>(fn: () => Promise<T>): Promise<T> {
+    let unlock!: () => void;
+    const next = new Promise<void>((resolve) => { unlock = resolve; });
+    const result = this._queue.then(() => fn()).finally(() => unlock());
+    this._queue = next;
+    return result;
+  }
+}
+
+const _mutex = new Mutex();
+export function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  return _mutex.run(fn);
+}
+
 type DbDataRaw = Omit<DbData, "freeShipping"> & { freeShipping?: FreeShippingWindow };
 
 const EMPTY_PRICING = { products: [], bundles: [], promoCodes: [] };
