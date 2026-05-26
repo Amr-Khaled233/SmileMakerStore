@@ -1,6 +1,6 @@
-import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, StaticProductOverride, BundleOverride } from "../../server/types.js";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, DynamicBundle, StaticProductOverride, BundleOverride } from "../../server/types.js";
 
-export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, StaticProductOverride, BundleOverride };
+export type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, DynamicBundle, StaticProductOverride, BundleOverride };
 
 export type PublicInventoryStatus = {
   outOfStock: string[];
@@ -131,6 +131,18 @@ export const api = {
     req<{ success: boolean }>("PATCH", `/products/static/${slug}/details`, patch, token),
   updateBundle: (token: string, id: string, patch: Partial<BundleOverride>) =>
     req<{ success: boolean }>("PATCH", `/products/bundles/${id}`, patch, token),
+
+  // User-created bundles (public)
+  getDynamicBundles: () =>
+    req<DynamicBundle[]>("GET", "/bundles"),
+
+  // User-created bundles (manager)
+  createDynamicBundle: (token: string, data: Omit<DynamicBundle, "id">) =>
+    req<{ success: boolean; bundle: DynamicBundle }>("POST", "/bundles", data, token),
+  updateDynamicBundle: (token: string, id: string, patch: Partial<Omit<DynamicBundle, "id">>) =>
+    req<{ success: boolean }>("PATCH", `/bundles/${id}`, patch, token),
+  deleteDynamicBundle: (token: string, id: string) =>
+    req<{ success: boolean }>("DELETE", `/bundles/${id}`, undefined, token),
 
   // Free shipping window (public)
   getFreeShippingStatus: () =>

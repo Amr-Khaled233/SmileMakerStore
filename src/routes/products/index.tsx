@@ -4,7 +4,7 @@ import { ArrowRight, Star, Sparkles } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { api, type Pricing, type DynamicProduct } from "@/lib/api";
+import { api, type Pricing, type DynamicProduct, type DynamicBundle } from "@/lib/api";
 
 export const Route = createFileRoute("/products/")({
   component: ProductsPage,
@@ -15,9 +15,11 @@ function ProductsPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
   useEffect(() => { api.getProductsMeta().then((m) => setHiddenSlugs(m.hidden)).catch(() => {}); }, []);
+  useEffect(() => { api.getDynamicBundles().then(setUserBundles).catch(() => {}); }, []);
 
   const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
@@ -160,6 +162,39 @@ function ProductsPage() {
                       )}
                     </p>
                     <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
+                  </div>
+
+                  <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
+                    {t("btn.orderBundle")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                  </Link>
+                </div>
+              );
+            })}
+
+            {userBundles.map((b) => {
+              const allProds = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0] ?? "" }))];
+              const items = b.items.map((s) => allProds.find((p) => p.slug === s)).filter(Boolean) as { slug: string; title: string; image: string }[];
+              return (
+                <div key={b.id} className="lux-card p-7 flex flex-col">
+                  <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
+                  {(b.taglineEn || b.taglineAr) && (
+                    <p className="mt-2 text-sm text-muted-foreground">{lang === "ar" ? b.taglineAr : b.taglineEn}</p>
+                  )}
+
+                  <div className="mt-5 flex items-center gap-3 flex-wrap">
+                    {items.map((i) => (
+                      <div key={i.slug} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
+                        {i.image ? (
+                          <img src={i.image} alt={i.title} loading="lazy" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="text-2xl price-tag text-gradient">{formatEGP(b.price, lang)}</p>
                   </div>
 
                   <Link to="/order" className="btn-primary mt-6 text-sm w-fit">

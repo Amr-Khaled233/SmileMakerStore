@@ -77,6 +77,16 @@ export type DynamicProduct = {
   outOfStock?: boolean;
 };
 
+export type DynamicBundle = {
+  id: string;
+  titleEn: string;
+  titleAr: string;
+  taglineEn?: string;
+  taglineAr?: string;
+  items: string[]; // product slugs (static or dynamic)
+  price: number;
+};
+
 export type BundleOverride = {
   titleEn?: string;
   titleAr?: string;
@@ -101,6 +111,7 @@ export type DbData = {
   pricing: Pricing;
   freeShipping: FreeShippingWindow;
   dynamicProducts: DynamicProduct[];
+  dynamicBundles: DynamicBundle[];
   productImageOverrides: Record<string, string[]>; // slug -> base64 images
   productHidden: string[]; // slugs of hidden static products
   staticOverrides: Record<string, StaticProductOverride>; // slug -> text/feature overrides

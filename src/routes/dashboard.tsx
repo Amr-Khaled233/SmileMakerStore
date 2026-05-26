@@ -26,7 +26,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 };
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
-import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, BundleOverride, StaticProductOverride } from "@/lib/api";
+import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, DynamicBundle, BundleOverride, StaticProductOverride } from "@/lib/api";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice, H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY, WAX_GALLERY, LSHAPED_GALLERY } from "@/data/products";
 
 const PRODUCT_GALLERIES: Record<string, string[]> = {
@@ -617,6 +617,8 @@ function toDatetimeLocal(isoStr: string): string {
 function PricingSection({ token }: { token: string }) {
   const [productDrafts, setProductDrafts] = useState<Record<string, { price: string; salePrice: string }>>({});
   const [bundleDrafts, setBundleDrafts] = useState<Record<string, string>>({});
+  const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
+  const [userBundleDrafts, setUserBundleDrafts] = useState<Record<string, string>>({});
   const [promos, setPromos] = useState<PromoCodeEntry[]>([]);
   const [newPromo, setNewPromo] = useState({ code: "", pct: "", label: "" });
   const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -629,7 +631,10 @@ function PricingSection({ token }: { token: string }) {
   const [fsSaving, setFsSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const data: Pricing = await api.getPricing(token);
+    const [data, dynBundles] = await Promise.all([
+      api.getPricing(token),
+      api.getDynamicBundles().catch(() => [] as DynamicBundle[]),
+    ]);
 
     const pDrafts: Record<string, { price: string; salePrice: string }> = {};
     for (const p of PRODUCTS) {
@@ -647,6 +652,11 @@ function PricingSection({ token }: { token: string }) {
       bDrafts[b.id] = ov !== undefined ? String(ov.price) : "";
     }
     setBundleDrafts(bDrafts);
+
+    setUserBundles(dynBundles);
+    const ubDrafts: Record<string, string> = {};
+    for (const b of dynBundles) ubDrafts[b.id] = String(b.price);
+    setUserBundleDrafts(ubDrafts);
 
     setPromos(data.promoCodes);
 
@@ -684,6 +694,15 @@ function PricingSection({ token }: { token: string }) {
     if (isNaN(price) || price < 0) return;
     setSaving((s) => ({ ...s, [id]: true }));
     await api.updateBundlePrice(token, id, price);
+    await load();
+    setSaving((s) => ({ ...s, [id]: false }));
+  };
+
+  const saveUserBundlePrice = async (id: string) => {
+    const price = Number(userBundleDrafts[id]);
+    if (isNaN(price) || price < 0) return;
+    setSaving((s) => ({ ...s, [id]: true }));
+    await api.updateDynamicBundle(token, id, { price });
     await load();
     setSaving((s) => ({ ...s, [id]: false }));
   };
@@ -838,6 +857,43 @@ function PricingSection({ token }: { token: string }) {
           })}
         </div>
       </section>
+
+      {/* User-created Bundle Prices */}
+      {userBundles.length > 0 && (
+      <section>
+        <h3 className="font-display text-xl mb-1">أسعار الباقات المضافة</h3>
+        <p className="text-xs text-muted-foreground mb-4">السعر المباشر للباقات اللي أضفتها.</p>
+        <div className="space-y-3">
+          {userBundles.map((b) => (
+            <div key={b.id} className="lux-card p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-ink text-sm">{b.titleAr}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{b.items.length} منتجات</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    type="number"
+                    min={0}
+                    value={userBundleDrafts[b.id] ?? ""}
+                    onChange={(e) => setUserBundleDrafts((d) => ({ ...d, [b.id]: e.target.value }))}
+                    className="w-24 text-center lux-input text-sm"
+                  />
+                  <span className="text-xs text-muted-foreground">جنيه</span>
+                  <button
+                    onClick={() => saveUserBundlePrice(b.id)}
+                    disabled={saving[b.id]}
+                    className="btn-ghost text-xs py-2 px-4 disabled:opacity-50"
+                  >
+                    {saving[b.id] ? "..." : "حفظ"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+      )}
 
       {/* Promo Codes */}
       <section>
@@ -1445,23 +1501,34 @@ function ProductsSection({ token }: { token: string }) {
   });
   const [savingStaticDetails, setSavingStaticDetails] = useState(false);
 
-  // Bundles
+  // Hardcoded bundle overrides
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
   const [bundleForm, setBundleForm] = useState({ titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], discountPct: "10" });
   const [savingBundle, setSavingBundle] = useState(false);
 
+  // User-created bundles
+  const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
+  const EMPTY_BUNDLE_FORM = { titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], price: "" };
+  const [newBundleForm, setNewBundleForm] = useState(EMPTY_BUNDLE_FORM);
+  const [creatingBundle, setCreatingBundle] = useState(false);
+  const [editingUserBundleId, setEditingUserBundleId] = useState<string | null>(null);
+  const [editUserBundleForm, setEditUserBundleForm] = useState(EMPTY_BUNDLE_FORM);
+  const [savingUserBundle, setSavingUserBundle] = useState(false);
+
   const load = useCallback(async () => {
-    const [data, meta, pricing] = await Promise.all([
+    const [data, meta, pricing, dynBundles] = await Promise.all([
       api.getDynamicProducts().catch(() => [] as DynamicProduct[]),
       api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
       api.getPricing(token).catch(() => null as Pricing | null),
+      api.getDynamicBundles().catch(() => [] as DynamicBundle[]),
     ]);
     setProducts(data);
     setImageOverrides(meta.imageOverrides);
     setHiddenSlugs(meta.hidden);
     setStaticOverrides(meta.staticOverrides ?? {});
     setBundleOverrides(meta.bundleOverrides ?? {});
+    setUserBundles(dynBundles);
     if (pricing) {
       const ovMap: Record<string, { price: number; salePrice?: number | null }> = {};
       for (const ov of pricing.products) {
@@ -1642,6 +1709,59 @@ function ProductsSection({ token }: { token: string }) {
   };
   const toggleBundleItem = (slug: string) =>
     setBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+
+  // ── User-created bundle handlers ──
+  const toggleNewBundleItem = (slug: string) =>
+    setNewBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+  const toggleEditUserBundleItem = (slug: string) =>
+    setEditUserBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+
+  const createUserBundle = async () => {
+    const price = Number(newBundleForm.price);
+    if (!newBundleForm.titleEn.trim() || !newBundleForm.titleAr.trim() || newBundleForm.items.length === 0 || isNaN(price) || price < 0) return;
+    setCreatingBundle(true);
+    await api.createDynamicBundle(token, {
+      titleEn: newBundleForm.titleEn.trim(),
+      titleAr: newBundleForm.titleAr.trim(),
+      taglineEn: newBundleForm.taglineEn.trim() || undefined,
+      taglineAr: newBundleForm.taglineAr.trim() || undefined,
+      items: newBundleForm.items,
+      price,
+    }).catch(() => {});
+    setNewBundleForm(EMPTY_BUNDLE_FORM);
+    await load();
+    setCreatingBundle(false);
+  };
+
+  const deleteUserBundle = async (id: string) => {
+    if (!window.confirm("حذف الباقة؟ لن يمكن التراجع.")) return;
+    await api.deleteDynamicBundle(token, id).catch(() => {});
+    setUserBundles((b) => b.filter((x) => x.id !== id));
+  };
+
+  const startEditUserBundle = (id: string) => {
+    const b = userBundles.find((x) => x.id === id)!;
+    setEditUserBundleForm({ titleEn: b.titleEn, titleAr: b.titleAr, taglineEn: b.taglineEn ?? "", taglineAr: b.taglineAr ?? "", items: [...b.items], price: String(b.price) });
+    setEditingUserBundleId(id);
+  };
+
+  const saveUserBundle = async () => {
+    if (!editingUserBundleId) return;
+    const price = Number(editUserBundleForm.price);
+    if (!editUserBundleForm.titleEn.trim() || !editUserBundleForm.titleAr.trim() || editUserBundleForm.items.length === 0 || isNaN(price) || price < 0) return;
+    setSavingUserBundle(true);
+    await api.updateDynamicBundle(token, editingUserBundleId, {
+      titleEn: editUserBundleForm.titleEn.trim(),
+      titleAr: editUserBundleForm.titleAr.trim(),
+      taglineEn: editUserBundleForm.taglineEn.trim() || undefined,
+      taglineAr: editUserBundleForm.taglineAr.trim() || undefined,
+      items: editUserBundleForm.items,
+      price,
+    }).catch(() => {});
+    await load();
+    setSavingUserBundle(false);
+    setEditingUserBundleId(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -2104,8 +2224,159 @@ function ProductsSection({ token }: { token: string }) {
 
       {/* ── Bundles ── */}
       {subTab === "bundles" && (
+        <div className="space-y-8">
+
+        {/* Create new bundle */}
         <section>
-          <h3 className="font-display text-xl mb-4">الباقات ({BUNDLES.length})</h3>
+          <h3 className="font-display text-xl mb-4">إضافة باقة جديدة</h3>
+          <div className="lux-card p-5 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">اسم الباقة (إنجليزي)</label>
+                <input className="lux-input text-sm" placeholder="Smile Bundle" value={newBundleForm.titleEn}
+                  onChange={(e) => setNewBundleForm((f) => ({ ...f, titleEn: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">اسم الباقة (عربي)</label>
+                <input className="lux-input text-sm" placeholder="باقة سمايل" dir="rtl" value={newBundleForm.titleAr}
+                  onChange={(e) => setNewBundleForm((f) => ({ ...f, titleAr: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">الوصف (إنجليزي)</label>
+                <input className="lux-input text-sm" placeholder="Complete oral care" value={newBundleForm.taglineEn}
+                  onChange={(e) => setNewBundleForm((f) => ({ ...f, taglineEn: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
+                <input className="lux-input text-sm" placeholder="عناية كاملة بالفم" dir="rtl" value={newBundleForm.taglineAr}
+                  onChange={(e) => setNewBundleForm((f) => ({ ...f, taglineAr: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">السعر (جنيه)</label>
+                <input className="lux-input text-sm" type="number" min={0} placeholder="499" value={newBundleForm.price}
+                  onChange={(e) => setNewBundleForm((f) => ({ ...f, price: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
+              <div className="flex flex-wrap gap-2">
+                {allProductOptions.map((opt) => {
+                  const checked = newBundleForm.items.includes(opt.slug);
+                  return (
+                    <button key={opt.slug} type="button" onClick={() => toggleNewBundleItem(opt.slug)}
+                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}>
+                      {checked ? "✓ " : ""}{opt.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <button onClick={createUserBundle} disabled={creatingBundle || !newBundleForm.titleEn.trim() || !newBundleForm.titleAr.trim() || newBundleForm.items.length === 0 || !newBundleForm.price}
+              className="btn-primary text-sm disabled:opacity-50">
+              {creatingBundle ? "جاري الإضافة..." : "إضافة الباقة"}
+            </button>
+          </div>
+        </section>
+
+        {/* User-created bundles */}
+        {userBundles.length > 0 && (
+        <section>
+          <h3 className="font-display text-xl mb-4">الباقات المضافة ({userBundles.length})</h3>
+          <div className="space-y-4">
+            {userBundles.map((b) => {
+              const isEditing = editingUserBundleId === b.id;
+              return (
+                <div key={b.id} className="lux-card p-5">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="font-display text-lg">{b.titleAr}</p>
+                      {b.taglineAr && <p className="text-xs text-muted-foreground mt-0.5">{b.taglineAr}</p>}
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-xs font-medium text-deep-blue">{b.price} جنيه</span>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        <span className="text-xs text-muted-foreground">{b.items.length} منتجات</span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap mt-1.5">
+                        {b.items.map((slug) => {
+                          const sp = PRODUCTS.find((p) => p.slug === slug) || products.find((p) => p.slug === slug);
+                          return sp ? <span key={slug} className="text-[10px] bg-soft border border-border rounded px-1.5 py-0.5" dir="ltr">{sp.title}</span> : null;
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => isEditing ? setEditingUserBundleId(null) : startEditUserBundle(b.id)}
+                        className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors">
+                        {isEditing ? "إغلاق" : "تعديل"}
+                      </button>
+                      <button onClick={() => deleteUserBundle(b.id)}
+                        className="text-xs border border-destructive/30 text-destructive rounded-lg px-3 py-1.5 hover:bg-destructive/5 transition-colors">
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="mt-4 pt-4 border-t border-border space-y-3">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">اسم الباقة (إنجليزي)</label>
+                          <input className="lux-input text-sm" value={editUserBundleForm.titleEn}
+                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, titleEn: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">اسم الباقة (عربي)</label>
+                          <input className="lux-input text-sm" value={editUserBundleForm.titleAr} dir="rtl"
+                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, titleAr: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (إنجليزي)</label>
+                          <input className="lux-input text-sm" value={editUserBundleForm.taglineEn}
+                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, taglineEn: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
+                          <input className="lux-input text-sm" value={editUserBundleForm.taglineAr} dir="rtl"
+                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, taglineAr: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">السعر (جنيه)</label>
+                          <input className="lux-input text-sm" type="number" min={0} value={editUserBundleForm.price}
+                            onChange={(e) => setEditUserBundleForm((f) => ({ ...f, price: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
+                        <div className="flex flex-wrap gap-2">
+                          {allProductOptions.map((opt) => {
+                            const checked = editUserBundleForm.items.includes(opt.slug);
+                            return (
+                              <button key={opt.slug} type="button" onClick={() => toggleEditUserBundleItem(opt.slug)}
+                                className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}>
+                                {checked ? "✓ " : ""}{opt.title}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={saveUserBundle} disabled={savingUserBundle}
+                          className="btn-primary text-sm disabled:opacity-50">
+                          {savingUserBundle ? "جاري الحفظ..." : "حفظ التعديلات"}
+                        </button>
+                        <button onClick={() => setEditingUserBundleId(null)} className="btn-ghost text-sm">إلغاء</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        )}
+
+        {/* Hardcoded bundle overrides */}
+        <section>
+          <h3 className="font-display text-xl mb-4">الباقات الأصلية ({BUNDLES.length})</h3>
           <div className="space-y-4">
             {BUNDLES.map((b) => {
               const ov = bundleOverrides[b.id] ?? {};
@@ -2195,6 +2466,7 @@ function ProductsSection({ token }: { token: string }) {
             })}
           </div>
         </section>
+        </div>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
 import { useT } from "@/lib/i18n";
-import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type BundleOverride } from "@/lib/api";
+import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type DynamicBundle, type BundleOverride } from "@/lib/api";
 
 export const Route = createFileRoute("/order")({
   component: OrderPage,
@@ -57,6 +57,7 @@ function OrderPage() {
   const [colorErrorBundles, setColorErrorBundles] = useState<Set<string>>(new Set());
   const bundleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
+  const [userCreatedBundles, setUserCreatedBundles] = useState<DynamicBundle[]>([]);
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [staticColorOverrides, setStaticColorOverrides] = useState<Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]>>({});
 
@@ -64,6 +65,7 @@ function OrderPage() {
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getFreeShippingStatus().then((r) => setFreeShippingActive(r.active)).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
+  useEffect(() => { api.getDynamicBundles().then(setUserCreatedBundles).catch(() => {}); }, []);
   useEffect(() => {
     api.getProductsMeta().then((m) => {
       setBundleOverrides(m.bundleOverrides);
@@ -160,12 +162,12 @@ function OrderPage() {
   const dynColorTotal = (slug: string) => Object.values(dynColorQty[slug] ?? {}).reduce((s, q) => s + q, 0);
 
   const dynamicBundles = useMemo(
-    () =>
-      BUNDLES.map((b) => {
+    () => [
+      ...BUNDLES.map((b) => {
         const priceOv = pricing.bundles.find((x) => x.id === b.id);
         const configOv = bundleOverrides[b.id];
         return {
-          ...b,
+          id: b.id,
           title: { en: configOv?.titleEn || b.title.en, ar: configOv?.titleAr || b.title.ar },
           tagline: { en: configOv?.taglineEn || b.tagline.en, ar: configOv?.taglineAr || b.tagline.ar },
           items: configOv?.items ?? b.items,
@@ -173,7 +175,16 @@ function OrderPage() {
           fixedPrice: priceOv?.price,
         };
       }),
-    [pricing, bundleOverrides],
+      ...userCreatedBundles.map((b) => ({
+        id: b.id,
+        title: { en: b.titleEn, ar: b.titleAr },
+        tagline: { en: b.taglineEn ?? "", ar: b.taglineAr ?? "" },
+        items: b.items,
+        discountPct: 0,
+        fixedPrice: b.price,
+      })),
+    ],
+    [pricing, bundleOverrides, userCreatedBundles],
   );
   const dynamicPromoCodes = useMemo(
     (): Array<{ code: string; pct: number }> =>
