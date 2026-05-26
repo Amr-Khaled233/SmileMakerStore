@@ -1623,6 +1623,7 @@ function ProductsSection({ token }: { token: string }) {
   const getEffectiveImages = (slug: string) => imageOverrides[slug]?.length ? imageOverrides[slug] : (PRODUCT_GALLERIES[slug] ?? []);
 
   const removeStaticImage = async (slug: string, idx: number) => {
+    if (!window.confirm("حذف الصورة؟ لن يمكن التراجع.")) return;
     const imgs = getEffectiveImages(slug);
     const newImgs = imgs.filter((_, i) => i !== idx);
     await api.setStaticProductImages(token, slug, newImgs).catch(() => {});
@@ -2074,12 +2075,6 @@ function ProductsSection({ token }: { token: string }) {
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-medium text-ink">الصور ({displayImages.length})</p>
-                        {hasCustomImgs && (
-                          <button onClick={() => clearStaticImages(p.slug)}
-                            className="text-[10px] text-amber-600 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-full px-2 py-0.5 transition-colors">
-                            استعادة الأصلية
-                          </button>
-                        )}
                       </div>
                       <button onClick={() => openStaticImagePicker(p.slug)} disabled={staticUploadingFor === p.slug}
                         className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
