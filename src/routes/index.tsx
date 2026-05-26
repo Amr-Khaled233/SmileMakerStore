@@ -6,8 +6,9 @@ import hero from "@/assets/hero-smile.jpg";
 import flosser from "@/assets/h2o-flosser-1.jpeg";
 import ortho from "@/assets/ortho-kit-2.jpeg";
 import { useT, type L } from "@/lib/i18n";
-import { formatEGP } from "@/data/products";
+import { formatEGP, PRODUCTS } from "@/data/products";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { api } from "@/lib/api";
 
 import slide1 from "@/assets/h2o-flosser-1.jpeg";
 import slide2 from "@/assets/electric-brush-1.jpeg";
@@ -15,13 +16,37 @@ import slide3 from "@/assets/ortho-kit-1.jpeg";
 import slide4 from "@/assets/l-shaped-1.jpeg";
 import slide5 from "@/assets/ortho-wax-main.jpeg";
 
-const SLIDES = [slide1, slide2, slide3, slide4, slide5];
+const FALLBACK_SLIDES = [slide1, slide2, slide3, slide4, slide5];
 
 function ProductCarousel() {
+  const [slides, setSlides] = useState<string[]>(FALLBACK_SLIDES);
   const [active, setActive] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const n = SLIDES.length;
+
+  // Build slides dynamically from all products + image overrides
+  useEffect(() => {
+    Promise.all([
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[] })),
+      api.getDynamicProducts().catch(() => []),
+    ]).then(([meta, dynProds]) => {
+      const imgs: string[] = [];
+      // Static products (skip hidden, use override[0] if set)
+      for (const p of PRODUCTS) {
+        if (meta.hidden.includes(p.slug)) continue;
+        const ov = (meta.imageOverrides as Record<string, string[]>)[p.slug];
+        imgs.push(ov?.[0] ?? p.image);
+      }
+      // Dynamic products (only those with at least one image)
+      for (const p of dynProds) {
+        if (p.outOfStock) continue;
+        if (p.images[0]) imgs.push(p.images[0]);
+      }
+      if (imgs.length > 0) setSlides(imgs);
+    });
+  }, []);
+
+  const n = slides.length;
 
   const scrollTo = useCallback((idx: number) => {
     const i = ((idx % n) + n) % n;
@@ -37,7 +62,7 @@ function ProductCarousel() {
         trackRef.current?.scrollTo({ left: next * (trackRef.current.offsetWidth), behavior: "smooth" });
         return next;
       });
-    }, 3200);
+    }, 2000);
   }, [n]);
 
   useEffect(() => {
@@ -63,7 +88,7 @@ function ProductCarousel() {
         className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide rounded-2xl sm:rounded-3xl shadow-xl"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {SLIDES.map((src, i) => (
+        {slides.map((src, i) => (
           <div key={i} className="shrink-0 w-full snap-center aspect-square sm:aspect-[4/3]">
             <img
               src={src}
@@ -93,7 +118,7 @@ function ProductCarousel() {
 
       {/* Dots */}
       <div className="flex justify-center gap-1.5 mt-4">
-        {SLIDES.map((_, i) => (
+        {slides.map((_, i) => (
           <button
             key={i}
             onClick={() => { scrollTo(i); startTimer(); }}
