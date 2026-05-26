@@ -270,7 +270,7 @@ function OrderPage() {
   // (within the same bundle) + all instances of other matched bundles + standalone qty.
   const colorConsumedBefore = useCallback(
     (slug: string, colorId: string, bundleId: string, instanceIdx: number): number => {
-      let count = standaloneColorQty[slug as ProductSlug]?.[colorId] ?? 0;
+      let count = (standaloneColorQty[slug as ProductSlug]?.[colorId] ?? 0) + (dynColorQty[slug]?.[colorId] ?? 0);
       for (const mb of matchedBundles) {
         const limit = mb.id === bundleId ? instanceIdx : (bundleQty[mb.id] ?? 1);
         for (let j = 0; j < limit; j++) {
@@ -279,7 +279,7 @@ function OrderPage() {
       }
       return count;
     },
-    [matchedBundles, bundleQty, bundleColorSelections, standaloneColorQty],
+    [matchedBundles, bundleQty, bundleColorSelections, standaloneColorQty, dynColorQty],
   );
 
   const isColorVirtuallyOos = useCallback(
@@ -340,7 +340,7 @@ function OrderPage() {
       const bQty = bundleQty[b.id] ?? 1;
       for (let i = 0; i < bQty; i++) {
         for (const slug of b.items) {
-          const p = products.find((x) => x.slug === slug);
+          const p = allDisplayProducts.find((x) => x.slug === slug);
           if (p?.colors?.length && !bundleColorSelections[b.id]?.[i]?.[slug]) {
             missingColorIds.add(b.id);
           }
