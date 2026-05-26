@@ -143,6 +143,16 @@ router.delete("/:id/images/:idx", requireAuth, async (req, res) => {
 
 // ── Static product management (protected) ────────────────────────────────────
 
+// Set the entire custom images array at once (accepts base64 or asset URLs)
+router.put("/static/:slug/images", requireAuth, async (req, res) => {
+  const { images } = req.body as { images?: string[] };
+  if (!Array.isArray(images)) { res.status(400).json({ error: "images must be an array" }); return; }
+  const db = await readDb();
+  db.productImageOverrides[req.params.slug] = images.filter(Boolean);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 // Add image override to a static product
 router.post("/static/:slug/images", requireAuth, async (req, res) => {
   const { image } = req.body as { image?: string };

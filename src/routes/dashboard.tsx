@@ -1618,9 +1618,16 @@ function ProductsSection({ token }: { token: string }) {
     reader.onload = async (ev) => { await api.addStaticProductImage(token, slug, ev.target?.result as string).catch(() => {}); await load(); setStaticUploadingFor(null); };
     reader.readAsDataURL(file);
   };
+
+  // Get effective image list for a slug (custom if exists, else originals)
+  const getEffectiveImages = (slug: string) => imageOverrides[slug]?.length ? imageOverrides[slug] : (PRODUCT_GALLERIES[slug] ?? []);
+
   const removeStaticImage = async (slug: string, idx: number) => {
-    await api.removeStaticProductImage(token, slug, idx);
-    setImageOverrides((prev) => ({ ...prev, [slug]: (prev[slug] ?? []).filter((_, i) => i !== idx) }));
+    const imgs = getEffectiveImages(slug);
+    const newImgs = imgs.filter((_, i) => i !== idx);
+    await api.setStaticProductImages(token, slug, newImgs).catch(() => {});
+    if (newImgs.length === 0) setImageOverrides((prev) => { const next = { ...prev }; delete next[slug]; return next; });
+    else setImageOverrides((prev) => ({ ...prev, [slug]: newImgs }));
   };
   const clearStaticImages = async (slug: string) => {
     if (!window.confirm("استعادة الصور الأصلية للمنتج؟")) return;
@@ -1630,7 +1637,11 @@ function ProductsSection({ token }: { token: string }) {
   const setStaticImagePrimary = async (slug: string, idx: number) => {
     if (idx === 0) return;
     setStaticSettingPrimary(`${slug}:${idx}`);
-    await api.setStaticProductImagePrimary(token, slug, idx).catch(() => {});
+    const imgs = getEffectiveImages(slug);
+    const newImgs = [...imgs];
+    const [img] = newImgs.splice(idx, 1);
+    newImgs.unshift(img);
+    await api.setStaticProductImages(token, slug, newImgs).catch(() => {});
     await load();
     setStaticSettingPrimary(null);
   };
@@ -1643,7 +1654,11 @@ function ProductsSection({ token }: { token: string }) {
     if (!file || !info) return; e.target.value = ""; setStaticUploadingFor(`${info.slug}:${info.idx}`);
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      await api.replaceStaticProductImage(token, info.slug, info.idx, ev.target?.result as string).catch(() => {});
+      const newImage = ev.target?.result as string;
+      const imgs = getEffectiveImages(info.slug);
+      const newImgs = [...imgs];
+      newImgs[info.idx] = newImage;
+      await api.setStaticProductImages(token, info.slug, newImgs).catch(() => {});
       await load(); setStaticUploadingFor(null);
     };
     reader.readAsDataURL(file);
@@ -2059,20 +2074,17 @@ function ProductsSection({ token }: { token: string }) {
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-medium text-ink">الصور ({displayImages.length})</p>
-                        {!hasCustomImgs && <span className="text-[10px] text-muted-foreground bg-soft border border-border rounded-full px-2 py-0.5">أصلية</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
                         {hasCustomImgs && (
                           <button onClick={() => clearStaticImages(p.slug)}
-                            className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-lg px-3 py-1.5 transition-colors">
+                            className="text-[10px] text-amber-600 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-full px-2 py-0.5 transition-colors">
                             استعادة الأصلية
                           </button>
                         )}
-                        <button onClick={() => openStaticImagePicker(p.slug)} disabled={staticUploadingFor === p.slug}
-                          className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
-                          {staticUploadingFor === p.slug ? "جاري الرفع..." : "+ إضافة صورة مخصصة"}
-                        </button>
                       </div>
+                      <button onClick={() => openStaticImagePicker(p.slug)} disabled={staticUploadingFor === p.slug}
+                        className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
+                        {staticUploadingFor === p.slug ? "جاري الرفع..." : "+ إضافة صورة"}
+                      </button>
                     </div>
                     <div className="flex flex-wrap gap-3">
                       {displayImages.map((src, idx) => {
@@ -2080,46 +2092,38 @@ function ProductsSection({ token }: { token: string }) {
                         const settingThis = staticSettingPrimary === `${p.slug}:${idx}`;
                         const replacingThis = staticUploadingFor === `${p.slug}:${idx}`;
                         return (
-                          <div key={idx} className="relative group flex flex-col items-center gap-1">
+                          <div key={`${src}-${idx}`} className="relative group flex flex-col items-center gap-1">
                             <div className={`relative h-20 w-20 rounded-xl border-2 overflow-hidden ${isPrimary ? "border-deep-blue" : "border-border"}`}>
                               <img src={src} alt="" className="w-full h-full object-cover" />
-                              {/* Delete button */}
-                              {hasCustomImgs && (
-                                <button onClick={() => removeStaticImage(p.slug, idx)}
-                                  className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">×</button>
-                              )}
+                              {/* Delete button — top corner on hover */}
+                              <button onClick={() => removeStaticImage(p.slug, idx)}
+                                className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">×</button>
                             </div>
-                            {/* Action buttons below each image */}
-                            {hasCustomImgs && (
-                              <div className="flex gap-1">
-                                {!isPrimary && (
-                                  <button
-                                    onClick={() => setStaticImagePrimary(p.slug, idx)}
-                                    disabled={!!settingThis}
-                                    title="تعيين كأساسية"
-                                    className="h-6 px-1.5 rounded-md bg-deep-blue/10 text-deep-blue text-[9px] font-medium hover:bg-deep-blue/20 transition-colors disabled:opacity-50">
-                                    {settingThis ? "..." : "⭐"}
-                                  </button>
-                                )}
+                            {/* Controls below each image */}
+                            <div className="flex gap-1">
+                              {isPrimary ? (
+                                <span className="text-[9px] text-deep-blue font-medium px-1">أساسية</span>
+                              ) : (
                                 <button
-                                  onClick={() => openStaticReplaceImagePicker(p.slug, idx)}
-                                  disabled={replacingThis}
-                                  title="استبدال الصورة"
-                                  className="h-6 px-1.5 rounded-md bg-soft border border-border text-[9px] hover:bg-white transition-colors disabled:opacity-50">
-                                  {replacingThis ? "..." : "بدّل"}
+                                  onClick={() => setStaticImagePrimary(p.slug, idx)}
+                                  disabled={!!settingThis}
+                                  title="تعيين كأساسية"
+                                  className="h-6 px-1.5 rounded-md bg-deep-blue/10 text-deep-blue text-[9px] font-medium hover:bg-deep-blue/20 transition-colors disabled:opacity-50">
+                                  {settingThis ? "..." : "⭐ أساسية"}
                                 </button>
-                              </div>
-                            )}
-                            {isPrimary && (
-                              <span className="text-[9px] text-deep-blue font-medium">أساسية</span>
-                            )}
+                              )}
+                              <button
+                                onClick={() => openStaticReplaceImagePicker(p.slug, idx)}
+                                disabled={replacingThis}
+                                title="استبدال الصورة"
+                                className="h-6 px-1.5 rounded-md bg-soft border border-border text-[9px] hover:bg-white transition-colors disabled:opacity-50">
+                                {replacingThis ? "..." : "بدّل"}
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                    {!hasCustomImgs && (
-                      <p className="text-xs text-muted-foreground pt-3">أضف صوراً مخصصة لتحل محل الأصلية عند العملاء</p>
-                    )}
                   </div>
 
                   {/* ── Info / Edit ── */}

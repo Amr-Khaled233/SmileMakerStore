@@ -119,6 +119,8 @@ export const api = {
     req<{ success: boolean }>("DELETE", `/products/${id}/images/${idx}`, undefined, token),
 
   // Static product image overrides (manager)
+  setStaticProductImages: (token: string, slug: string, images: string[]) =>
+    req<{ success: boolean }>("PUT", `/products/static/${slug}/images`, { images }, token),
   addStaticProductImage: (token: string, slug: string, image: string) =>
     req<{ success: boolean }>("POST", `/products/static/${slug}/images`, { image }, token),
   removeStaticProductImage: (token: string, slug: string, idx: number) =>
