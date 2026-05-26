@@ -1631,11 +1631,6 @@ function ProductsSection({ token }: { token: string }) {
     if (newImgs.length === 0) setImageOverrides((prev) => { const next = { ...prev }; delete next[slug]; return next; });
     else setImageOverrides((prev) => ({ ...prev, [slug]: newImgs }));
   };
-  const clearStaticImages = async (slug: string) => {
-    if (!window.confirm("استعادة الصور الأصلية للمنتج؟")) return;
-    await api.clearStaticProductImages(token, slug);
-    setImageOverrides((prev) => { const next = { ...prev }; delete next[slug]; return next; });
-  };
   const setStaticImagePrimary = async (slug: string, idx: number) => {
     if (idx === 0) return;
     setStaticSettingPrimary(`${slug}:${idx}`);
@@ -1680,7 +1675,7 @@ function ProductsSection({ token }: { token: string }) {
       descriptionAr: ov.descriptionAr ?? prod.description.ar,
       taglineEn: ov.taglineEn ?? prod.tagline.en,
       taglineAr: ov.taglineAr ?? prod.tagline.ar,
-      features: ov.features ? [...ov.features] : [...(PRODUCT_DETAILS[slug as ProductSlug]?.features ?? [])],
+      features: ov.features?.length ? [...ov.features] : [...(PRODUCT_DETAILS[slug as ProductSlug]?.features ?? [])],
       colors: ov.colors
         ? [...ov.colors]
         : prod.colors
@@ -2032,7 +2027,7 @@ function ProductsSection({ token }: { token: string }) {
               const textOv = staticOverrides[p.slug] ?? {};
               const currentDesc = { en: textOv.description || p.description.en, ar: textOv.descriptionAr || p.description.ar };
               const currentTagline = { en: textOv.taglineEn || p.tagline.en, ar: textOv.taglineAr || p.tagline.ar };
-              const currentFeatures = textOv.features ?? PRODUCT_DETAILS[p.slug as ProductSlug]?.features ?? [];
+              const currentFeatures = textOv.features?.length ? textOv.features : (PRODUCT_DETAILS[p.slug as ProductSlug]?.features ?? []);
               const currentColors = textOv.colors ?? p.colors ?? [];
 
               const isEditingDetails = editingStaticSlug === p.slug;
