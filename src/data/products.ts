@@ -403,13 +403,6 @@ export const SHIPPING_ZONES: ShippingZone[] = [
   { id: "other", label: { en: "Other governorates", ar: "محافظات أخرى" }, fee: 100 },
 ];
 
-export type PromoCode = { code: string; pct: number; label: L };
-
-export const PROMO_CODES: PromoCode[] = [
-  { code: "SMILE10", pct: 10, label: { en: "10% off your order", ar: "خصم ١٠٪ على طلبك" } },
-  { code: "WELCOME5", pct: 5, label: { en: "5% off — first order", ar: "خصم ٥٪ — لأول طلب" } },
-  { code: "SHINE15", pct: 15, label: { en: "15% off — limited time", ar: "خصم ١٥٪ — لفترة محدودة" } },
-];
 
 export const formatEGP = (amount: number, lang: "en" | "ar" = "en") =>
   lang === "ar"

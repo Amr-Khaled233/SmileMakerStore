@@ -3,7 +3,7 @@ import { Layout } from "@/components/site/Layout";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
-import { PRODUCTS, BUNDLES, SHIPPING_ZONES, PROMO_CODES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
+import { PRODUCTS, BUNDLES, SHIPPING_ZONES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
 import { useT } from "@/lib/i18n";
 import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type DynamicBundle, type BundleOverride } from "@/lib/api";
 
@@ -191,10 +191,7 @@ function OrderPage() {
     [pricing, bundleOverrides, userCreatedBundles],
   );
   const dynamicPromoCodes = useMemo(
-    (): Array<{ code: string; pct: number }> =>
-      pricing.promoCodes.length > 0
-        ? pricing.promoCodes
-        : PROMO_CODES.map((p) => ({ code: p.code, pct: p.pct })),
+    (): Array<{ code: string; pct: number }> => pricing.promoCodes,
     [pricing],
   );
 
