@@ -103,6 +103,7 @@ export type StaticProductOverride = {
   taglineAr?: string;
   features?: { en: string; ar: string }[];
   colors?: { id: string; label: { en: string; ar: string }; hex: string }[];
+  related?: string[]; // product slugs
 };
 
 export type DbData = {

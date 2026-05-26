@@ -224,9 +224,9 @@ router.delete("/static/:slug/images", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// Update text details (description, tagline, features, colors) for a static product
+// Update text details (description, tagline, features, colors, related) for a static product
 router.patch("/static/:slug/details", requireAuth, async (req, res) => {
-  const { description, descriptionAr, taglineEn, taglineAr, features, colors } = req.body as Partial<StaticProductOverride>;
+  const { description, descriptionAr, taglineEn, taglineAr, features, colors, related } = req.body as Partial<StaticProductOverride>;
   const db = await readDb();
   if (!db.staticOverrides[req.params.slug]) db.staticOverrides[req.params.slug] = {};
   const ov = db.staticOverrides[req.params.slug];
@@ -236,6 +236,7 @@ router.patch("/static/:slug/details", requireAuth, async (req, res) => {
   if (taglineAr !== undefined) ov.taglineAr = taglineAr?.trim() || undefined;
   if (Array.isArray(features)) ov.features = features;
   if (Array.isArray(colors)) ov.colors = colors.length > 0 ? colors : undefined;
+  if (Array.isArray(related)) ov.related = related.length > 0 ? related : undefined;
   await writeDb(db);
   res.json({ success: true });
 });

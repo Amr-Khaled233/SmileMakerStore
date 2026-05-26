@@ -1501,6 +1501,7 @@ function ProductsSection({ token }: { token: string }) {
     taglineEn: "", taglineAr: "",
     features: [] as { en: string; ar: string }[],
     colors: [] as { id: string; label: { en: string; ar: string }; hex: string }[],
+    related: [] as string[],
   });
   const [savingStaticDetails, setSavingStaticDetails] = useState(false);
 
@@ -1685,6 +1686,7 @@ function ProductsSection({ token }: { token: string }) {
         : prod.colors
           ? prod.colors.map((c) => ({ id: c.id, label: { en: c.label.en, ar: c.label.ar }, hex: c.hex }))
           : [],
+      related: ov.related ? [...ov.related] : (PRODUCT_DETAILS[slug as ProductSlug]?.related.map((r) => r.slug) ?? []),
     });
     setEditingStaticSlug(slug);
   };
@@ -1698,6 +1700,7 @@ function ProductsSection({ token }: { token: string }) {
       taglineAr: staticEditForm.taglineAr.trim() || undefined,
       features: staticEditForm.features.filter((f) => f.en.trim() || f.ar.trim()),
       colors: staticEditForm.colors.filter((c) => c.label.en.trim() || c.label.ar.trim()),
+      related: staticEditForm.related,
     }).catch(() => {});
     await load();
     setSavingStaticDetails(false);
@@ -2253,6 +2256,36 @@ function ProductsSection({ token }: { token: string }) {
                               ))}
                             </div>
                           )}
+                        </div>
+
+                        {/* Related products */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-2 block">المنتجات المرتبطة (Related)</label>
+                          <div className="space-y-1.5">
+                            {[
+                              ...PRODUCTS.filter((x) => x.slug !== p.slug).map((x) => ({ slug: x.slug, title: x.title })),
+                              ...products.filter((x) => x.slug !== p.slug).map((x) => ({ slug: x.slug, title: x.title })),
+                            ].map((opt) => {
+                              const checked = staticEditForm.related.includes(opt.slug);
+                              return (
+                                <label key={opt.slug} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => setStaticEditForm((f) => ({
+                                      ...f,
+                                      related: checked
+                                        ? f.related.filter((s) => s !== opt.slug)
+                                        : [...f.related, opt.slug],
+                                    }))}
+                                    className="rounded border-border"
+                                  />
+                                  <span dir="ltr">{opt.title}</span>
+                                  <span className="text-muted-foreground" dir="ltr">/{opt.slug}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
 
                         <div className="flex gap-2">

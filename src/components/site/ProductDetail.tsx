@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Star, ShoppingCart, Zap, ShieldCheck, Sparkles, Check } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { useT, type L } from "@/lib/i18n";
-import { formatEGP } from "@/data/products";
+import { formatEGP, PRODUCTS, PRODUCT_DETAILS, type ProductSlug } from "@/data/products";
 import { api, type Pricing, type StaticProductOverride } from "@/lib/api";
 
 export type ProductRelated = {
@@ -66,13 +66,18 @@ export function ProductDetail(p: ProductDetailProps) {
   const displayPrice = priceOv?.price ?? p.price;
   const displaySalePrice = priceOv !== undefined ? (priceOv.salePrice ?? undefined) : p.salePrice;
 
-  const relatedWithPricing = p.related.map((r) => {
+  const baseRelated: ProductRelated[] = textOverride?.related?.length
+    ? textOverride.related.map((slug) => {
+        const prod = PRODUCTS.find((x) => x.slug === slug);
+        const det = PRODUCT_DETAILS[slug as ProductSlug];
+        if (!prod) return null;
+        return { slug, title: prod.title, price: prod.price, salePrice: prod.salePrice, image: det?.gallery[0]?.src ?? prod.image };
+      }).filter(Boolean) as ProductRelated[]
+    : p.related;
+
+  const relatedWithPricing = baseRelated.map((r) => {
     const ov = pricing.products.find((x) => x.slug === r.slug);
-    return {
-      ...r,
-      price: ov?.price ?? r.price,
-      salePrice: ov !== undefined ? (ov.salePrice ?? undefined) : r.salePrice,
-    };
+    return { ...r, price: ov?.price ?? r.price, salePrice: ov !== undefined ? (ov.salePrice ?? undefined) : r.salePrice };
   });
   return (
     <>
