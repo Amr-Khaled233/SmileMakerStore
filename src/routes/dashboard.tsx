@@ -1690,6 +1690,49 @@ function ProductsSection({ token }: { token: string }) {
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const pendingProductId = useRef<string | null>(null);
 
+  // Edit dynamic product
+  const [editingDynId, setEditingDynId] = useState<string | null>(null);
+  const EMPTY_DYN_EDIT = { title: "", titleAr: "", price: "", salePrice: "", description: "", descriptionAr: "", features: [] as { en: string; ar: string }[], colors: [] as { id: string; label: { en: string; ar: string }; hex: string }[] };
+  const [dynEditForm, setDynEditForm] = useState(EMPTY_DYN_EDIT);
+  const [savingDynEdit, setSavingDynEdit] = useState(false);
+
+  const startEditDyn = (p: DynamicProduct) => {
+    setEditingDynId(p.id);
+    setDynEditForm({
+      title: p.title,
+      titleAr: p.titleAr,
+      price: String(p.price),
+      salePrice: p.salePrice ? String(p.salePrice) : "",
+      description: p.description ?? "",
+      descriptionAr: p.descriptionAr ?? "",
+      features: p.features?.length ? [...p.features] : [],
+      colors: p.colors?.length ? p.colors.map((c) => ({ ...c, label: { ...c.label } })) : [],
+    });
+  };
+
+  const saveDynEdit = async (id: string) => {
+    const price = Number(dynEditForm.price);
+    const salePrice = dynEditForm.salePrice.trim() ? Number(dynEditForm.salePrice) : undefined;
+    if (!dynEditForm.title.trim() || !dynEditForm.titleAr.trim() || isNaN(price) || price <= 0) return;
+    setSavingDynEdit(true);
+    try {
+      await api.updateProduct(token, id, {
+        title: dynEditForm.title.trim(),
+        titleAr: dynEditForm.titleAr.trim(),
+        price,
+        salePrice: salePrice && salePrice > 0 ? salePrice : undefined,
+        description: dynEditForm.description.trim() || undefined,
+        descriptionAr: dynEditForm.descriptionAr.trim() || undefined,
+        features: dynEditForm.features.filter((f) => f.en.trim() || f.ar.trim()),
+        colors: dynEditForm.colors.filter((c) => c.label.en.trim() || c.label.ar.trim()),
+      });
+      setEditingDynId(null);
+      await load();
+    } finally {
+      setSavingDynEdit(false);
+    }
+  };
+
   // Static products
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
@@ -2149,11 +2192,109 @@ function ProductsSection({ token }: { token: string }) {
                           ) : null}
                         </div>
                       </div>
-                      <button onClick={() => deleteProduct(p.id)}
-                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" /> حذف
-                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => editingDynId === p.id ? setEditingDynId(null) : startEditDyn(p)}
+                          className="flex items-center gap-1.5 text-xs text-deep-blue hover:text-deep-blue/80 border border-deep-blue/30 hover:bg-deep-blue/5 rounded-lg px-3 py-1.5 transition-colors">
+                          <Pencil className="h-3.5 w-3.5" /> {editingDynId === p.id ? "إلغاء" : "تعديل"}
+                        </button>
+                        <button onClick={() => deleteProduct(p.id)}
+                          className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" /> حذف
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Inline edit form */}
+                    {editingDynId === p.id && (
+                      <div className="mt-4 pt-4 border-t border-border space-y-3">
+                        <p className="text-xs font-medium text-ink">تعديل بيانات المنتج</p>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الاسم (EN)</label>
+                            <input className="lux-input text-sm" dir="ltr" value={dynEditForm.title}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, title: e.target.value }))} placeholder="Product name" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الاسم (AR)</label>
+                            <input className="lux-input text-sm" dir="rtl" value={dynEditForm.titleAr}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, titleAr: e.target.value }))} placeholder="اسم المنتج" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
+                            <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.price}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, price: e.target.value }))} placeholder="0" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
+                            <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.salePrice}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, salePrice: e.target.value }))} placeholder="0" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (EN)</label>
+                          <textarea className="lux-input text-sm resize-none" rows={2} dir="ltr" value={dynEditForm.description}
+                            onChange={(e) => setDynEditForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description..." />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (AR)</label>
+                          <textarea className="lux-input text-sm resize-none" rows={2} dir="rtl" value={dynEditForm.descriptionAr}
+                            onChange={(e) => setDynEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} placeholder="الوصف..." />
+                        </div>
+                        {/* Features */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-muted-foreground">المميزات</label>
+                            <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: [...f.features, { en: "", ar: "" }] }))}
+                              className="text-xs text-deep-blue hover:underline">+ إضافة</button>
+                          </div>
+                          <div className="space-y-2">
+                            {dynEditForm.features.map((feat, i) => (
+                              <div key={i} className="flex gap-2 items-center">
+                                <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Feature EN" value={feat.en}
+                                  onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, en: e.target.value } : x) }))} />
+                                <input className="lux-input text-xs flex-1" dir="rtl" placeholder="الميزة" value={feat.ar}
+                                  onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, ar: e.target.value } : x) }))} />
+                                <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }))}
+                                  className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Colors */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-muted-foreground">الألوان</label>
+                            <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: [...f.colors, { id: `c${Date.now()}`, label: { en: "", ar: "" }, hex: "#4B9CD3" }] }))}
+                              className="text-xs text-deep-blue hover:underline">+ إضافة لون</button>
+                          </div>
+                          {dynEditForm.colors.length === 0 ? <p className="text-xs text-muted-foreground">بدون ألوان</p> : (
+                            <div className="space-y-2">
+                              {dynEditForm.colors.map((c, i) => (
+                                <div key={i} className="flex gap-2 items-center">
+                                  <input type="color" value={c.hex}
+                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, hex: e.target.value } : x) }))}
+                                    className="h-9 w-12 rounded-lg border border-border cursor-pointer p-1 shrink-0" />
+                                  <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Color EN" value={c.label.en}
+                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, en: e.target.value } } : x) }))} />
+                                  <input className="lux-input text-xs flex-1" dir="rtl" placeholder="اللون" value={c.label.ar}
+                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, ar: e.target.value } } : x) }))} />
+                                  <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: f.colors.filter((_, idx) => idx !== i) }))}
+                                    className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => saveDynEdit(p.id)} disabled={savingDynEdit || !dynEditForm.title || !dynEditForm.titleAr || !dynEditForm.price}
+                            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            {savingDynEdit ? "جاري الحفظ..." : "حفظ التعديلات"}
+                          </button>
+                          <button onClick={() => setEditingDynId(null)} className="btn-ghost text-sm">إلغاء</button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-4 pt-4 border-t border-border space-y-4">
                       {/* Primary image */}
                       <div>
