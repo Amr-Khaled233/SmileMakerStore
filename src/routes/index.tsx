@@ -3,12 +3,10 @@ import { Layout } from "@/components/site/Layout";
 import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap, ChevronLeft, ChevronRight } from "lucide-react";
 import logo from "@/assets/smile-maker-logo.png";
 import hero from "@/assets/hero-smile.jpg";
-import flosser from "@/assets/h2o-flosser-1.jpeg";
-import ortho from "@/assets/ortho-kit-2.jpeg";
 import { useT, type L } from "@/lib/i18n";
-import { formatEGP, PRODUCTS } from "@/data/products";
+import { formatEGP, PRODUCTS, effectivePrice } from "@/data/products";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, type Pricing } from "@/lib/api";
 
 import slide1 from "@/assets/h2o-flosser-1.jpeg";
 import slide2 from "@/assets/electric-brush-1.jpeg";
@@ -136,8 +134,34 @@ export const Route = createFileRoute("/")({
 });
 
 
+const FEATURED_SLUGS = ["h2o-water-flosser", "ortho-oral-kit"];
+
 function HomePage() {
   const { t, tl, lang } = useT();
+  const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
+  const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
+  const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+
+  useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
+  useEffect(() => {
+    api.getProductsMeta().then((m) => {
+      setImageOverrides(m.imageOverrides ?? {});
+      setHiddenSlugs(m.hidden ?? []);
+    }).catch(() => {});
+  }, []);
+
+  const featuredProducts = PRODUCTS
+    .filter((p) => FEATURED_SLUGS.includes(p.slug) && !hiddenSlugs.includes(p.slug))
+    .map((p) => {
+      const ov = pricing.products.find((x) => x.slug === p.slug);
+      const imgs = imageOverrides[p.slug];
+      return {
+        ...p,
+        price: ov?.price ?? p.price,
+        salePrice: ov !== undefined ? (ov.salePrice ?? undefined) : p.salePrice,
+        image: imgs?.[0] ?? p.image,
+      };
+    });
   const features: { icon: typeof Zap; t: L; x: L }[] = [
     { icon: Zap, t: { en: "Advanced Tech", ar: "تقنية متطورة" }, x: { en: "Hydro-pulse + sonic.", ar: "نبضات مائية + سونيك." } },
     { icon: ShieldCheck, t: { en: "Safe & Pro", ar: "آمن واحترافي" }, x: { en: "Medically certified.", ar: "معتمد طبياً." } },
@@ -261,33 +285,40 @@ function HomePage() {
           </div>
 
           <div className="mt-12 grid md:grid-cols-2 gap-8">
-            {[
-              { to: "/products/h2o-water-flosser" as const, image: flosser, title: "H2O Water Flosser", price: 1800, salePrice: 1650, rating: 4.9, badge: true },
-              { to: "/products/ortho-oral-kit" as const, image: ortho, title: "Ortho Kit", price: 350, salePrice: 300, rating: 4.8, badge: false },
-            ].map((p) => (
-              <div key={p.to} className="lux-card overflow-hidden group">
-                <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
-                  <img src={p.image} alt={p.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
-                  {p.badge && <div className="absolute top-4 start-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{t("home.bestseller")}</div>}
-                </div>
-                <div className="p-8">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-2xl font-display" dir="ltr">{p.title}</h3>
-                    <div className="flex items-end gap-2 whitespace-nowrap">
-                      <span className="text-2xl font-display text-gradient">{formatEGP(p.salePrice ?? p.price, lang)}</span>
-                      {p.salePrice && <span className="text-sm text-muted-foreground line-through">{formatEGP(p.price, lang)}</span>}
+            {featuredProducts.map((p) => {
+              const price = effectivePrice(p);
+              const onSale = p.salePrice != null;
+              return (
+                <Link
+                  key={p.slug}
+                  to="/products/$slug"
+                  params={{ slug: p.slug }}
+                  className="lux-card overflow-hidden group block"
+                >
+                  <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+                    <img src={p.image} alt={p.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
+                    {p.badge && <div className="absolute top-4 start-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{tl(p.badge)}</div>}
+                  </div>
+                  <div className="p-7">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-xl font-display" dir="ltr">{p.title}</h3>
+                      <div className="flex items-end gap-2 whitespace-nowrap">
+                        <span className="text-xl price-tag text-gradient">{formatEGP(price, lang)}</span>
+                        {onSale && <span className="text-xs text-muted-foreground line-through">{formatEGP(p.price, lang)}</span>}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-muted-foreground text-sm line-clamp-2">{tl(p.tagline)}</p>
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-deep-blue text-sm">
+                        {Array.from({ length: 5 }).map((_, i) => <Star key={i} className={`h-4 w-4 ${i < Math.round(p.rating) ? "fill-current" : "opacity-30"}`} />)}
+                        <span className="ms-2 text-muted-foreground">{p.rating}</span>
+                      </div>
+                      <span className="text-deep-blue text-sm inline-flex items-center gap-1">{t("btn.view")} <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" /></span>
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-deep-blue text-sm">
-                      {Array.from({ length: 5 }).map((_, i) => <Star key={i} className={`h-4 w-4 ${i < Math.round(p.rating) ? "fill-current" : "opacity-30"}`} />)}
-                      <span className="ms-2 text-muted-foreground">{p.rating}</span>
-                    </div>
-                    <Link to={p.to} className="btn-primary text-sm">{t("btn.viewDetails")} <ArrowRight className="h-4 w-4 rtl:rotate-180" /></Link>
-                  </div>
-                </div>
-              </div>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
