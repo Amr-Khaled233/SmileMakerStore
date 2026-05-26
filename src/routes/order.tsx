@@ -85,6 +85,7 @@ function OrderPage() {
       PRODUCTS.map((p) => {
         const priceOv = pricing.products.find((x) => x.slug === p.slug);
         const colorOv = staticColorOverrides[p.slug];
+        const imgOv = staticImageOverrides[p.slug];
         return {
           ...p,
           price: priceOv?.price ?? p.price,
@@ -92,9 +93,10 @@ function OrderPage() {
           outOfStock: inventoryStatus.outOfStock.includes(p.slug) ? true : p.outOfStock,
           outOfStockColors: inventoryStatus.outOfStockColors[p.slug] ?? p.outOfStockColors,
           colors: colorOv ?? p.colors,
+          image: imgOv?.[0] ?? p.image,
         };
       }),
-    [inventoryStatus, pricing, staticColorOverrides],
+    [inventoryStatus, pricing, staticColorOverrides, staticImageOverrides],
   );
 
   // Unified display list for bundle resolution (static + dynamic)
