@@ -123,6 +123,10 @@ export const api = {
     req<{ success: boolean }>("POST", `/products/static/${slug}/images`, { image }, token),
   removeStaticProductImage: (token: string, slug: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/products/static/${slug}/images/${idx}`, undefined, token),
+  setStaticProductImagePrimary: (token: string, slug: string, idx: number) =>
+    req<{ success: boolean }>("PATCH", `/products/static/${slug}/images/${idx}/primary`, undefined, token),
+  replaceStaticProductImage: (token: string, slug: string, idx: number, image: string) =>
+    req<{ success: boolean }>("PUT", `/products/static/${slug}/images/${idx}`, { image }, token),
   clearStaticProductImages: (token: string, slug: string) =>
     req<{ success: boolean }>("DELETE", `/products/static/${slug}/images`, undefined, token),
   setProductVisibility: (token: string, slug: string, hidden: boolean) =>

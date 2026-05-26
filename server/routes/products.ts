@@ -169,6 +169,37 @@ router.delete("/static/:slug/images/:idx", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Set a specific custom image as primary (move to index 0)
+router.patch("/static/:slug/images/:idx/primary", requireAuth, async (req, res) => {
+  const idx = Number(req.params.idx);
+  const db = await readDb();
+  const imgs = db.productImageOverrides[req.params.slug];
+  if (!imgs || isNaN(idx) || idx < 0 || idx >= imgs.length) {
+    res.status(400).json({ error: "Invalid index" }); return;
+  }
+  const [img] = imgs.splice(idx, 1);
+  imgs.unshift(img);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Replace a specific custom image by index
+router.put("/static/:slug/images/:idx", requireAuth, async (req, res) => {
+  const { image } = req.body as { image?: string };
+  if (!image || !image.startsWith("data:image/")) {
+    res.status(400).json({ error: "Invalid image data" }); return;
+  }
+  const idx = Number(req.params.idx);
+  const db = await readDb();
+  const imgs = db.productImageOverrides[req.params.slug];
+  if (!imgs || isNaN(idx) || idx < 0 || idx >= imgs.length) {
+    res.status(400).json({ error: "Invalid index" }); return;
+  }
+  imgs[idx] = image;
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 // Clear all image overrides for a static product (restore originals)
 router.delete("/static/:slug/images", requireAuth, async (req, res) => {
   const db = await readDb();
