@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { readDb, writeDb } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { uploadImage, uploadImages } from "../lib/cloudinary.js";
-import type { DynamicProduct, StaticProductOverride, BundleOverride } from "../types.js";
+import type { DynamicProduct, StaticProductOverride, BundleOverride, InventoryEntry } from "../types.js";
 
 const router = Router();
 
@@ -45,7 +45,7 @@ router.patch("/bundles/:id", requireAuth, async (req, res) => {
 // ── Dynamic product CRUD (protected) ─────────────────────────────────────────
 
 router.post("/", requireAuth, async (req, res) => {
-  const { title, titleAr, slug, price, salePrice, description, descriptionAr, features } =
+  const { title, titleAr, slug, price, salePrice, description, descriptionAr, features, colors } =
     req.body as Partial<DynamicProduct>;
   if (!title || !titleAr || !slug || typeof price !== "number" || price < 0) {
     res.status(400).json({ error: "Missing required fields" }); return;
@@ -66,9 +66,15 @@ router.post("/", requireAuth, async (req, res) => {
     price,
     salePrice: typeof salePrice === "number" && salePrice > 0 ? salePrice : undefined,
     images: [],
+    colors: Array.isArray(colors) && colors.length > 0 ? colors : undefined,
     outOfStock: false,
   };
+  const invEntry: InventoryEntry = { slug: cleanSlug, qty: 0 };
+  if (product.colors?.length) {
+    invEntry.colorQty = Object.fromEntries(product.colors.map((c) => [c.id, 0]));
+  }
   db.dynamicProducts.push(product);
+  db.inventory.push(invEntry);
   await writeDb(db);
   res.json({ success: true, product });
 });
@@ -77,7 +83,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
   const db = await readDb();
   const idx = db.dynamicProducts.findIndex((p) => p.id === req.params.id);
   if (idx === -1) { res.status(404).json({ error: "Not found" }); return; }
+  const product = db.dynamicProducts[idx];
   db.dynamicProducts.splice(idx, 1);
+  db.inventory = db.inventory.filter((e) => e.slug !== product.slug);
   await writeDb(db);
   res.json({ success: true });
 });
@@ -86,7 +94,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
   const db = await readDb();
   const product = db.dynamicProducts.find((p) => p.id === req.params.id);
   if (!product) { res.status(404).json({ error: "Not found" }); return; }
-  const { outOfStock, price, salePrice, title, titleAr, description, descriptionAr, features } =
+  const { outOfStock, price, salePrice, title, titleAr, description, descriptionAr, features, colors } =
     req.body as Partial<DynamicProduct>;
   if (outOfStock !== undefined) product.outOfStock = outOfStock;
   if (typeof price === "number" && price >= 0) product.price = price;
@@ -96,6 +104,24 @@ router.patch("/:id", requireAuth, async (req, res) => {
   if (description !== undefined) product.description = description?.trim();
   if (descriptionAr !== undefined) product.descriptionAr = descriptionAr?.trim();
   if (Array.isArray(features)) product.features = features;
+  if (Array.isArray(colors)) {
+    product.colors = colors.length > 0 ? colors : undefined;
+    const inv = db.inventory.find((e) => e.slug === product.slug);
+    if (inv) {
+      if (colors.length > 0) {
+        inv.colorQty = inv.colorQty ?? {};
+        for (const c of colors) {
+          if (!(c.id in inv.colorQty)) inv.colorQty[c.id] = 0;
+        }
+        const validIds = new Set(colors.map((c) => c.id));
+        for (const id of Object.keys(inv.colorQty)) {
+          if (!validIds.has(id)) delete inv.colorQty[id];
+        }
+      } else {
+        inv.colorQty = undefined;
+      }
+    }
+  }
   await writeDb(db);
   res.json({ success: true });
 });

@@ -419,13 +419,15 @@ function OrderCard({
 
 function InventorySection({ token }: { token: string }) {
   const [inventory, setInventory] = useState<InventoryEntry[]>([]);
+  const [dynProds, setDynProds] = useState<DynamicProduct[]>([]);
   const [draftQty, setDraftQty] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await api.getInventory(token);
+    const [data, dynProdsData] = await Promise.all([api.getInventory(token), api.getDynamicProducts().catch(() => [] as DynamicProduct[])]);
     setInventory(data);
+    setDynProds(dynProdsData);
     const draft: Record<string, number> = {};
     for (const e of data) {
       draft[e.slug] = e.qty;
@@ -446,12 +448,13 @@ function InventorySection({ token }: { token: string }) {
 
   // When a color qty changes, also recompute the product total
   const updateColorDraft = (slug: string, colorId: string, newVal: number) => {
-    const product = PRODUCTS.find((p) => p.slug === slug);
+    const product = PRODUCTS.find((p) => p.slug === slug) ?? dynProds.find((p) => p.slug === slug);
+    const colors = product && 'colors' in product ? product.colors : undefined;
     const colorKey = `${slug}__${colorId}`;
     setDraftQty((d) => {
       const next = { ...d, [colorKey]: newVal };
-      if (product?.colors) {
-        const total = product.colors.reduce((sum, c) => {
+      if (colors) {
+        const total = colors.reduce((sum, c) => {
           const ck = `${slug}__${c.id}`;
           return sum + (next[ck] ?? 0);
         }, 0);
@@ -473,9 +476,10 @@ function InventorySection({ token }: { token: string }) {
     setSaving((s) => ({ ...s, [key]: true }));
     await api.updateColorQty(token, slug, colorId, draftQty[key] ?? 0);
     // Sync total product qty = sum of all color qtys
-    const product = PRODUCTS.find((p) => p.slug === slug);
-    if (product?.colors) {
-      const total = product.colors.reduce((sum, c) => sum + (draftQty[`${slug}__${c.id}`] ?? 0), 0);
+    const product = PRODUCTS.find((p) => p.slug === slug) ?? dynProds.find((p) => p.slug === slug);
+    const colors = product && 'colors' in product ? product.colors : undefined;
+    if (colors) {
+      const total = colors.reduce((sum, c) => sum + (draftQty[`${slug}__${c.id}`] ?? 0), 0);
       await api.updateProductQty(token, slug, total);
     }
     await load();
@@ -601,6 +605,126 @@ function InventorySection({ token }: { token: string }) {
           </div>
         );
       })}
+
+      {/* Dynamic products */}
+      {dynProds.map((p) => {
+        const entry = getEntry(p.slug);
+        const productQty = draftQty[p.slug] ?? entry.qty;
+        const isOos = entry.qty === 0;
+        const hasColors = (p.colors?.length ?? 0) > 0;
+
+        return (
+          <div key={p.slug} className="lux-card p-5">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-xl bg-soft border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                {p.images[0] ? (
+                  <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="h-6 w-6 text-muted-foreground/40" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium text-ink" dir="ltr">{p.title}</p>
+                  <span className="text-[10px] bg-deep-blue/10 text-deep-blue rounded-full px-2 py-0.5">مضاف</span>
+                  {isOos && (
+                    <span className="text-[10px] font-medium text-destructive bg-destructive/10 rounded-full px-2 py-0.5">
+                      نفد المخزون
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formatEGP(p.salePrice ?? p.price)} EGP
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {hasColors ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-border bg-soft px-3 py-2">
+                    <span className="text-xs text-muted-foreground">الإجمالي:</span>
+                    <span className="text-sm font-medium text-ink w-8 text-center">{productQty}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => setDraftQty((d) => ({ ...d, [p.slug]: Math.max(0, (d[p.slug] ?? entry.qty) - 1) }))}
+                      className="h-8 w-8 rounded-lg hover:bg-soft flex items-center justify-center text-lg leading-none"
+                    >−</button>
+                    <input
+                      type="number"
+                      min={0}
+                      value={productQty}
+                      onChange={(e) => setDraftQty((d) => ({ ...d, [p.slug]: Math.max(0, Number(e.target.value) || 0) }))}
+                      className="w-14 text-center bg-transparent text-sm font-medium focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDraftQty((d) => ({ ...d, [p.slug]: (d[p.slug] ?? entry.qty) + 1 }))}
+                      className="h-8 w-8 rounded-lg hover:bg-soft flex items-center justify-center text-lg leading-none"
+                    >+</button>
+                  </div>
+                )}
+                {!hasColors && (
+                  <button
+                    onClick={() => saveProduct(p.slug)}
+                    disabled={saving[p.slug]}
+                    className="btn-ghost text-xs py-2 px-4 disabled:opacity-50"
+                  >
+                    {saving[p.slug] ? "..." : "حفظ"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {hasColors && p.colors && (
+              <div className="mt-4 pt-4 border-t border-border space-y-2">
+                <p className="text-xs text-muted-foreground mb-3">الألوان:</p>
+                {p.colors.map((c) => {
+                  const colorKey = `${p.slug}__${c.id}`;
+                  const colorEntry = entry.colorQty?.[c.id];
+                  const colorQtyVal = draftQty[colorKey] ?? colorEntry ?? 0;
+                  const colorOos = colorEntry === 0;
+
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 ms-2">
+                      <span className="h-4 w-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }} />
+                      <span className="text-sm text-ink w-20">{c.label.ar}</span>
+                      {colorOos && <span className="text-[10px] text-destructive">نفد</span>}
+                      <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1 ms-auto">
+                        <button
+                          type="button"
+                          onClick={() => updateColorDraft(p.slug, c.id, Math.max(0, colorQtyVal - 1))}
+                          className="h-7 w-7 rounded-lg hover:bg-soft flex items-center justify-center text-base leading-none"
+                        >−</button>
+                        <input
+                          type="number"
+                          min={0}
+                          value={colorQtyVal}
+                          onChange={(e) => updateColorDraft(p.slug, c.id, Math.max(0, Number(e.target.value) || 0))}
+                          className="w-12 text-center bg-transparent text-sm font-medium focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateColorDraft(p.slug, c.id, colorQtyVal + 1)}
+                          className="h-7 w-7 rounded-lg hover:bg-soft flex items-center justify-center text-base leading-none"
+                        >+</button>
+                      </div>
+                      <button
+                        onClick={() => saveColor(p.slug, c.id)}
+                        disabled={saving[colorKey]}
+                        className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50"
+                      >
+                        {saving[colorKey] ? "..." : "حفظ"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -616,6 +740,8 @@ function toDatetimeLocal(isoStr: string): string {
 
 function PricingSection({ token }: { token: string }) {
   const [productDrafts, setProductDrafts] = useState<Record<string, { price: string; salePrice: string }>>({});
+  const [dynProductDrafts, setDynProductDrafts] = useState<Record<string, { price: string; salePrice: string }>>({});
+  const [dynProds, setDynProds] = useState<DynamicProduct[]>([]);
   const [bundleDrafts, setBundleDrafts] = useState<Record<string, string>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   const [userBundleDrafts, setUserBundleDrafts] = useState<Record<string, string>>({});
@@ -631,9 +757,10 @@ function PricingSection({ token }: { token: string }) {
   const [fsSaving, setFsSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [data, dynBundles] = await Promise.all([
+    const [data, dynBundles, dynProdsData] = await Promise.all([
       api.getPricing(token),
       api.getDynamicBundles().catch(() => [] as DynamicBundle[]),
+      api.getDynamicProducts().catch(() => [] as DynamicProduct[]),
     ]);
 
     const pDrafts: Record<string, { price: string; salePrice: string }> = {};
@@ -645,6 +772,13 @@ function PricingSection({ token }: { token: string }) {
       };
     }
     setProductDrafts(pDrafts);
+
+    setDynProds(dynProdsData);
+    const dpDrafts: Record<string, { price: string; salePrice: string }> = {};
+    for (const p of dynProdsData) {
+      dpDrafts[p.slug] = { price: String(p.price), salePrice: p.salePrice != null ? String(p.salePrice) : "" };
+    }
+    setDynProductDrafts(dpDrafts);
 
     const bDrafts: Record<string, string> = {};
     for (const b of BUNDLES) {
@@ -687,6 +821,17 @@ function PricingSection({ token }: { token: string }) {
     await api.updateProductPrice(token, slug, price, salePrice);
     await load();
     setSaving((s) => ({ ...s, [slug]: false }));
+  };
+
+  const saveDynProductPrice = async (p: DynamicProduct) => {
+    const draft = dynProductDrafts[p.slug];
+    const price = Number(draft?.price);
+    const salePrice = draft?.salePrice.trim() ? Number(draft.salePrice) : null;
+    if (isNaN(price) || price < 0) return;
+    setSaving((s) => ({ ...s, [`dyn_${p.slug}`]: true }));
+    await api.updateProduct(token, p.id, { price, salePrice: salePrice ?? undefined });
+    await load();
+    setSaving((s) => ({ ...s, [`dyn_${p.slug}`]: false }));
   };
 
   const saveBundlePrice = async (id: string) => {
@@ -805,6 +950,70 @@ function PricingSection({ token }: { token: string }) {
           })}
         </div>
       </section>
+
+      {/* Dynamic Product Prices */}
+      {dynProds.length > 0 && (
+      <section>
+        <h3 className="font-display text-xl mb-1">أسعار المنتجات المضافة</h3>
+        <p className="text-xs text-muted-foreground mb-4">اتركه فاضي أو اكتب 0 في سعر التخفيض لو ما فيش عرض.</p>
+        <div className="space-y-4">
+          {dynProds.map((p) => {
+            const draft = dynProductDrafts[p.slug] ?? { price: String(p.price), salePrice: "" };
+            const savingKey = `dyn_${p.slug}`;
+            return (
+              <div key={p.slug} className="lux-card p-5">
+                <div className="flex items-start gap-4">
+                  <div className="h-14 w-14 rounded-xl bg-soft border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                    {p.images[0] ? (
+                      <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-muted-foreground/40" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-ink mb-3" dir="ltr">{p.title}</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">السعر الأصلي (جنيه)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={draft.price}
+                          onChange={(e) =>
+                            setDynProductDrafts((d) => ({ ...d, [p.slug]: { ...d[p.slug], price: e.target.value } }))
+                          }
+                          className="lux-input text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">سعر التخفيض (اتركه فاضي لو ما فيش)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={draft.salePrice}
+                          onChange={(e) =>
+                            setDynProductDrafts((d) => ({ ...d, [p.slug]: { ...d[p.slug], salePrice: e.target.value } }))
+                          }
+                          className="lux-input text-sm"
+                          placeholder="—"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => saveDynProductPrice(p)}
+                    disabled={saving[savingKey]}
+                    className="btn-ghost text-xs py-2 px-4 disabled:opacity-50 shrink-0 mt-6"
+                  >
+                    {saving[savingKey] ? "..." : "حفظ"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      )}
 
       {/* Bundle Prices */}
       <section>
@@ -1508,7 +1717,7 @@ function ProductsSection({ token }: { token: string }) {
   // Hardcoded bundle overrides
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
-  const [bundleForm, setBundleForm] = useState({ titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], discountPct: "10" });
+  const [bundleForm, setBundleForm] = useState({ titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[] });
   const [savingBundle, setSavingBundle] = useState(false);
 
   // User-created bundles
@@ -1726,7 +1935,6 @@ function ProductsSection({ token }: { token: string }) {
       taglineEn: ov.taglineEn ?? base.tagline.en,
       taglineAr: ov.taglineAr ?? base.tagline.ar,
       items: ov.items ?? [...base.items],
-      discountPct: String(ov.discountPct ?? base.discountPct),
     });
     setEditingBundleId(id);
   };
@@ -1739,7 +1947,6 @@ function ProductsSection({ token }: { token: string }) {
       taglineEn: bundleForm.taglineEn || undefined,
       taglineAr: bundleForm.taglineAr || undefined,
       items: bundleForm.items,
-      discountPct: Number(bundleForm.discountPct) || 0,
     }).catch(() => {});
     await load();
     setSavingBundle(false);
@@ -2509,11 +2716,6 @@ function ProductsSection({ token }: { token: string }) {
                           <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
                           <input className="lux-input text-sm" value={bundleForm.taglineAr} dir="rtl"
                             onChange={(e) => setBundleForm((f) => ({ ...f, taglineAr: e.target.value }))} />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">نسبة الخصم (%)</label>
-                          <input className="lux-input text-sm" type="number" min={0} max={100} value={bundleForm.discountPct}
-                            onChange={(e) => setBundleForm((f) => ({ ...f, discountPct: e.target.value }))} />
                         </div>
                       </div>
                       <div>
