@@ -6,13 +6,8 @@ import { formatEGP } from "@/data/products";
 import { api, type Pricing, type StaticProductOverride } from "@/lib/api";
 
 export type ProductRelated = {
-  to:
-    | "/products/h2o-water-flosser"
-    | "/products/ortho-oral-kit"
-    | "/products/electrical-dental-brush"
-    | "/products/ortho-sheet"
-    | "/products/l-shaped-interdental-brush";
-  title: string; // product name — stays English
+  slug: string;
+  title: string;
   price: number;
   salePrice?: number;
   image: string;
@@ -72,8 +67,7 @@ export function ProductDetail(p: ProductDetailProps) {
   const displaySalePrice = priceOv !== undefined ? (priceOv.salePrice ?? undefined) : p.salePrice;
 
   const relatedWithPricing = p.related.map((r) => {
-    const relSlug = r.to.replace("/products/", "");
-    const ov = pricing.products.find((x) => x.slug === relSlug);
+    const ov = pricing.products.find((x) => x.slug === r.slug);
     return {
       ...r,
       price: ov?.price ?? r.price,
@@ -214,7 +208,7 @@ export function ProductDetail(p: ProductDetailProps) {
           </div>
           <div className="grid sm:grid-cols-2 gap-6">
             {relatedWithPricing.map((r) => (
-              <Link key={r.to} to={r.to} className="lux-card overflow-hidden block group">
+              <Link key={r.slug} to="/products/$slug" params={{ slug: r.slug }} className="lux-card overflow-hidden block group">
                 <div className="aspect-[4/3] bg-soft flex items-center justify-center overflow-hidden">
                   <img src={r.image} alt={r.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
                 </div>

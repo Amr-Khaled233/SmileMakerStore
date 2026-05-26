@@ -167,6 +167,179 @@ export const ELECTRIC_BRUSH_GALLERY = [electric1, electric2, electric3, electric
 export const WAX_GALLERY = [waxNew1, wax3, wax4, wax5];
 export const LSHAPED_GALLERY = [lshaped1, lshaped2, lshaped3, lshaped4, lshaped5];
 
+export type ProductRelated = { slug: string; title: string; price: number; salePrice?: number; image: string };
+
+export type ProductDetails = {
+  eyebrow: L;
+  gallery: { src: string; alt: string }[];
+  features: L[];
+  benefits: { icon: "zap" | "shield" | "sparkle"; title: L; text: L }[];
+  testimonials: { name: string; quote: L }[];
+  related: ProductRelated[];
+};
+
+export const PRODUCT_DETAILS: Record<ProductSlug, ProductDetails> = {
+  "h2o-water-flosser": {
+    eyebrow: { en: "Sale · H2O Series", ar: "عرض · سلسلة H2O" },
+    gallery: [
+      { src: H2O_GALLERY[0], alt: "H2O Flosser" },
+      { src: H2O_GALLERY[1], alt: "Box & accessories" },
+      { src: H2O_GALLERY[2], alt: "Replacement tips" },
+      { src: H2O_GALLERY[3], alt: "Device features" },
+      { src: H2O_GALLERY[4], alt: "H2O Flosser 5" },
+    ],
+    features: [
+      { en: "4 pressure modes (incl. pulse)", ar: "٤ أوضاع للضغط (تشمل النبض)" },
+      { en: "5 interchangeable nozzles", ar: "٥ رؤوس قابلة للتبديل" },
+      { en: "Powerful 2000mAh battery", ar: "بطارية قوية ٢٠٠٠mAh" },
+      { en: "300ml water tank", ar: "خزان مياه ٣٠٠ مل" },
+      { en: "USB-C charging — up to 30 days", ar: "شحن USB-C — حتى ٣٠ يوماً" },
+      { en: "IPX7 waterproof", ar: "مقاوم للماء IPX7" },
+    ],
+    benefits: [
+      { icon: "zap", title: { en: "Hydro-Pulse Power", ar: "قوة النبض المائي" }, text: { en: "Pressurized water loosens plaque between teeth and below the gumline.", ar: "ضغط الماء يزيل البلاك بين الأسنان وأسفل خط اللثة." } },
+      { icon: "shield", title: { en: "Gum-Safe", ar: "آمن على اللثة" }, text: { en: "Pulse mode massages and stimulates gums for healthier circulation.", ar: "وضع النبض يدلك اللثة ويحفز الدورة الدموية لصحة أفضل." } },
+      { icon: "sparkle", title: { en: "Fresher Mouth", ar: "فم أكثر انتعاشاً" }, text: { en: "Reaches braces, crowns, and tight spots a brush can't.", ar: "يصل للتقويم والتركيبات والأماكن الضيقة التي لا تصلها الفرشاة." } },
+    ],
+    testimonials: [
+      { name: "Amelia R.", quote: { en: "Switched from string floss and never going back. My hygienist asked what I changed.", ar: "انتقلت من الخيط العادي ولن أعود أبداً. طبيبة الأسنان لاحظت الفرق." } },
+      { name: "Daniel K.", quote: { en: "Sleek enough to leave on the counter. The battery genuinely lasts a month.", ar: "أنيق بما يكفي ليبقى على الرف. البطارية فعلاً تدوم شهر." } },
+      { name: "Sofia L.", quote: { en: "Gentle but powerful. My braces have never felt cleaner.", ar: "لطيف لكنه قوي. تقويمي لم يكن نظيفاً هكذا من قبل." } },
+    ],
+    related: [
+      { slug: "ortho-oral-kit", title: "Ortho Kit", price: 350, salePrice: 300, image: ORTHO_KIT_GALLERY[0] },
+      { slug: "electrical-dental-brush", title: "Electric Toothbrush", price: 650, salePrice: 500, image: ELECTRIC_BRUSH_GALLERY[0] },
+    ],
+  },
+  "ortho-oral-kit": {
+    eyebrow: { en: "Ortho Series", ar: "سلسلة Ortho" },
+    gallery: [
+      { src: ORTHO_KIT_GALLERY[0], alt: "Ortho Kit — 5 colors" },
+      { src: ORTHO_KIT_GALLERY[1], alt: "Ortho Kit complete set" },
+      { src: ORTHO_KIT_GALLERY[2], alt: "Ortho Kit contents" },
+      { src: ORTHO_KIT_GALLERY[3], alt: "Ortho Kit portable case" },
+    ],
+    features: [
+      { en: "8-piece complete set", ar: "طقم متكامل من ٨ قطع" },
+      { en: "Specialized braces toothbrush", ar: "فرشاة مخصصة للتقويم" },
+      { en: "Interdental brushes", ar: "فرش ما بين الأسنان" },
+      { en: "Orthodontic floss threaders", ar: "خيوط تنظيف للتقويم" },
+      { en: "Dental mirror & sand timer", ar: "مرآة أسنان وساعة رملية" },
+      { en: "Stylish portable container", ar: "علبة أنيقة وسهلة الحمل" },
+    ],
+    benefits: [
+      { icon: "shield", title: { en: "Braces-Friendly", ar: "متوافق مع التقويم" }, text: { en: "Every tool chosen to keep braces clean and food-free.", ar: "كل أداة مختارة للحفاظ على نظافة التقويم." } },
+      { icon: "sparkle", title: { en: "Fresh Daily", ar: "انتعاش يومي" }, text: { en: "Reduces buildup and keeps your breath fresh.", ar: "يقلل التراكمات ويحافظ على نَفَس منعش." } },
+      { icon: "zap", title: { en: "On-the-Go", ar: "للاستخدام في أي مكان" }, text: { en: "Portable case so your routine travels with you.", ar: "علبة محمولة ليبقى روتينك معك أينما ذهبت." } },
+    ],
+    testimonials: [
+      { name: "Sara A.", quote: { en: "Everything I need in one kit — love the colors.", ar: "كل اللي أحتاجه في طقم واحد — أحب الألوان." } },
+      { name: "Khalid M.", quote: { en: "The sand timer is genius for braces cleaning.", ar: "الساعة الرملية فكرة عبقرية لتنظيف التقويم." } },
+      { name: "Nour F.", quote: { en: "My orthodontist recommended it and I'm glad I got it.", ar: "طبيبي نصحني به وأنا سعيدة جداً بالشراء." } },
+    ],
+    related: [
+      { slug: "h2o-water-flosser", title: "H2O Water Flosser", price: 1800, salePrice: 1650, image: H2O_GALLERY[0] },
+      { slug: "l-shaped-interdental-brush", title: "L-Shaped Interdental Brush", price: 100, image: LSHAPED_GALLERY[0] },
+    ],
+  },
+  "electrical-dental-brush": {
+    eyebrow: { en: "Daily ritual", ar: "طقس يومي" },
+    gallery: [
+      { src: ELECTRIC_BRUSH_GALLERY[0], alt: "Electric Toothbrush colors" },
+      { src: ELECTRIC_BRUSH_GALLERY[1], alt: "Features overview" },
+      { src: ELECTRIC_BRUSH_GALLERY[2], alt: "IPX7 waterproof" },
+      { src: ELECTRIC_BRUSH_GALLERY[3], alt: "6 cleaning modes" },
+      { src: ELECTRIC_BRUSH_GALLERY[4], alt: "Smart timer" },
+      { src: ELECTRIC_BRUSH_GALLERY[5], alt: "Charging base" },
+    ],
+    features: [
+      { en: "High-frequency sonic vibrations", ar: "اهتزازات سونيك عالية التردد" },
+      { en: "6 brushing modes", ar: "٦ أوضاع تنظيف" },
+      { en: "Built-in 2-minute timer", ar: "مؤقت دقيقتين مدمج" },
+      { en: "IPX7 waterproof", ar: "مقاوم للماء IPX7" },
+      { en: "Long-lasting battery", ar: "بطارية تدوم طويلاً" },
+      { en: "Ergonomic non-slip grip", ar: "مقبض مريح غير زلق" },
+    ],
+    benefits: [
+      { icon: "shield", title: { en: "Superior Clean", ar: "تنظيف فائق" }, text: { en: "Sonic vibrations remove up to 10× more plaque.", ar: "الاهتزازات السونيك تزيل بلاكاً أكثر بـ١٠ مرات." } },
+      { icon: "sparkle", title: { en: "Smart Timer", ar: "مؤقت ذكي" }, text: { en: "Stops at 2 minutes — dentist-recommended.", ar: "يتوقف عند دقيقتين — موصى به طبياً." } },
+      { icon: "zap", title: { en: "Versatile Modes", ar: "أوضاع متعددة" }, text: { en: "Switch between clean, white, gum, and more.", ar: "تنقل بين تنظيف، تبييض، لثة وأكثر." } },
+    ],
+    testimonials: [
+      { name: "Omar S.", quote: { en: "My teeth have never felt this clean.", ar: "أسناني لم تكن نظيفة هكذا من قبل." } },
+      { name: "Lina K.", quote: { en: "Quiet motor and long battery — perfect.", ar: "محرك هادئ وبطارية طويلة — مثالي." } },
+      { name: "Ahmed R.", quote: { en: "6 modes for the whole family.", ar: "٦ أوضاع للعائلة كلها." } },
+    ],
+    related: [
+      { slug: "h2o-water-flosser", title: "H2O Water Flosser", price: 1800, salePrice: 1650, image: H2O_GALLERY[0] },
+      { slug: "ortho-oral-kit", title: "Ortho Kit", price: 350, salePrice: 300, image: ORTHO_KIT_GALLERY[0] },
+    ],
+  },
+  "ortho-sheet": {
+    eyebrow: { en: "Orthodontic comfort", ar: "راحة التقويم" },
+    gallery: [
+      { src: WAX_GALLERY[0], alt: "Orthodontic Wax" },
+      { src: WAX_GALLERY[1], alt: "5 strips per case" },
+      { src: WAX_GALLERY[2], alt: "Wax cases" },
+      { src: WAX_GALLERY[3], alt: "Color assortment" },
+    ],
+    features: [
+      { en: "5 strips per case", ar: "٥ شرائح في كل علبة" },
+      { en: "Hypoallergenic & safe", ar: "آمن ولا يسبب الحساسية" },
+      { en: "Easy to apply on brackets & wires", ar: "سهل التطبيق على البراكتس والأسلاك" },
+      { en: "Discreet, transparent finish", ar: "مظهر شفاف غير ملحوظ" },
+      { en: "Pocket-sized", ar: "حجم الجيب" },
+    ],
+    benefits: [
+      { icon: "shield", title: { en: "Gentle on Gums", ar: "لطيف على اللثة" }, text: { en: "A smooth barrier that prevents irritation.", ar: "حاجز ناعم يمنع التهيج." } },
+      { icon: "sparkle", title: { en: "Discreet", ar: "غير ملحوظ" }, text: { en: "Transparent finish blends with your braces.", ar: "تشطيب شفاف يندمج مع التقويم." } },
+      { icon: "zap", title: { en: "Instant Relief", ar: "راحة فورية" }, text: { en: "Apply in seconds — comfort wherever you go.", ar: "يُطبَّق في ثوان — راحة أينما كنت." } },
+    ],
+    testimonials: [
+      { name: "Salma E.", quote: { en: "Lifesaver for my new braces.", ar: "منقذ حقيقي لتقويمي الجديد." } },
+      { name: "Mark D.", quote: { en: "Tiny case fits in any pocket.", ar: "علبة صغيرة تناسب أي جيب." } },
+      { name: "Reem H.", quote: { en: "No more cuts on my cheeks.", ar: "لا مزيد من جروح الخدود." } },
+    ],
+    related: [
+      { slug: "ortho-oral-kit", title: "Ortho Kit", price: 350, salePrice: 300, image: ORTHO_KIT_GALLERY[0] },
+      { slug: "h2o-water-flosser", title: "H2O Water Flosser", price: 1800, salePrice: 1650, image: H2O_GALLERY[0] },
+    ],
+  },
+  "l-shaped-interdental-brush": {
+    eyebrow: { en: "Daily braces care", ar: "عناية يومية بالتقويم" },
+    gallery: [
+      { src: LSHAPED_GALLERY[0], alt: "L-Shaped brushes — yellow & purple" },
+      { src: LSHAPED_GALLERY[1], alt: "Available colors" },
+      { src: LSHAPED_GALLERY[2], alt: "Cleaning around braces" },
+      { src: LSHAPED_GALLERY[3], alt: "Interdental cleaning" },
+      { src: LSHAPED_GALLERY[4], alt: "Gentle on gums" },
+    ],
+    features: [
+      { en: "5 brushes per pack", ar: "٥ فرش في العبوة" },
+      { en: "L-shaped easy-reach design", ar: "تصميم L سهل الوصول" },
+      { en: "Soft, durable bristles", ar: "شعيرات ناعمة ومتينة" },
+      { en: "Flexible wire core", ar: "سلك داخلي مرن" },
+      { en: "Safe for braces & implants", ar: "آمن للتقويم والزرعات" },
+      { en: "Multiple sizes available", ar: "مقاسات متعددة" },
+    ],
+    benefits: [
+      { icon: "shield", title: { en: "Gum-Friendly", ar: "لطيف على اللثة" }, text: { en: "Soft bristles clean without irritation.", ar: "شعيرات ناعمة تنظف دون تهيج." } },
+      { icon: "sparkle", title: { en: "Fresher Breath", ar: "نَفَس أكثر انتعاشاً" }, text: { en: "Removes plaque and food trapped between teeth.", ar: "يزيل البلاك وبقايا الطعام بين الأسنان." } },
+      { icon: "zap", title: { en: "Easy Reach", ar: "وصول سهل" }, text: { en: "L-shape angle reaches braces and back teeth.", ar: "زاوية L تصل للتقويم والأسنان الخلفية." } },
+    ],
+    testimonials: [
+      { name: "Yara M.", quote: { en: "Finally a brush that fits around my braces.", ar: "أخيراً فرشاة تناسب تقويمي." } },
+      { name: "Hassan T.", quote: { en: "My gums feel healthier within a week.", ar: "لثتي صارت أكثر صحة خلال أسبوع." } },
+      { name: "Dina F.", quote: { en: "Soft yet effective — exactly what I needed.", ar: "ناعمة لكن فعّالة — تماماً ما كنت أحتاجه." } },
+    ],
+    related: [
+      { slug: "ortho-oral-kit", title: "Ortho Kit", price: 350, salePrice: 300, image: ORTHO_KIT_GALLERY[0] },
+      { slug: "h2o-water-flosser", title: "H2O Water Flosser", price: 1800, salePrice: 1650, image: H2O_GALLERY[0] },
+      { slug: "ortho-sheet", title: "Orthodontic Wax", price: 50, image: WAX_GALLERY[0] },
+    ],
+  },
+};
+
 /** WhatsApp contact (international format, no +) */
 const WHATSAPP_NUMBER = "201050852966";
 export const whatsappLink = (message?: string) =>

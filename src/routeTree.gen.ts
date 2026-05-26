@@ -15,11 +15,7 @@ import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products/index'
-import { Route as ProductsOrthoSheetRouteImport } from './routes/products/ortho-sheet'
-import { Route as ProductsOrthoOralKitRouteImport } from './routes/products/ortho-oral-kit'
-import { Route as ProductsLShapedInterdentalBrushRouteImport } from './routes/products/l-shaped-interdental-brush'
-import { Route as ProductsH2oWaterFlosserRouteImport } from './routes/products/h2o-water-flosser'
-import { Route as ProductsElectricalDentalBrushRouteImport } from './routes/products/electrical-dental-brush'
+import { Route as ProductsSlugRouteImport } from './routes/products/$slug'
 
 const OrderRoute = OrderRouteImport.update({
   id: '/order',
@@ -51,33 +47,11 @@ const ProductsIndexRoute = ProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProductsOrthoSheetRoute = ProductsOrthoSheetRouteImport.update({
-  id: '/products/ortho-sheet',
-  path: '/products/ortho-sheet',
+const ProductsSlugRoute = ProductsSlugRouteImport.update({
+  id: '/products/$slug',
+  path: '/products/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProductsOrthoOralKitRoute = ProductsOrthoOralKitRouteImport.update({
-  id: '/products/ortho-oral-kit',
-  path: '/products/ortho-oral-kit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProductsLShapedInterdentalBrushRoute =
-  ProductsLShapedInterdentalBrushRouteImport.update({
-    id: '/products/l-shaped-interdental-brush',
-    path: '/products/l-shaped-interdental-brush',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ProductsH2oWaterFlosserRoute = ProductsH2oWaterFlosserRouteImport.update({
-  id: '/products/h2o-water-flosser',
-  path: '/products/h2o-water-flosser',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProductsElectricalDentalBrushRoute =
-  ProductsElectricalDentalBrushRouteImport.update({
-    id: '/products/electrical-dental-brush',
-    path: '/products/electrical-dental-brush',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -85,11 +59,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
-  '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
-  '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
-  '/products/l-shaped-interdental-brush': typeof ProductsLShapedInterdentalBrushRoute
-  '/products/ortho-oral-kit': typeof ProductsOrthoOralKitRoute
-  '/products/ortho-sheet': typeof ProductsOrthoSheetRoute
+  '/products/$slug': typeof ProductsSlugRoute
   '/products/': typeof ProductsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -98,11 +68,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
-  '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
-  '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
-  '/products/l-shaped-interdental-brush': typeof ProductsLShapedInterdentalBrushRoute
-  '/products/ortho-oral-kit': typeof ProductsOrthoOralKitRoute
-  '/products/ortho-sheet': typeof ProductsOrthoSheetRoute
+  '/products/$slug': typeof ProductsSlugRoute
   '/products': typeof ProductsIndexRoute
 }
 export interface FileRoutesById {
@@ -112,11 +78,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/order': typeof OrderRoute
-  '/products/electrical-dental-brush': typeof ProductsElectricalDentalBrushRoute
-  '/products/h2o-water-flosser': typeof ProductsH2oWaterFlosserRoute
-  '/products/l-shaped-interdental-brush': typeof ProductsLShapedInterdentalBrushRoute
-  '/products/ortho-oral-kit': typeof ProductsOrthoOralKitRoute
-  '/products/ortho-sheet': typeof ProductsOrthoSheetRoute
+  '/products/$slug': typeof ProductsSlugRoute
   '/products/': typeof ProductsIndexRoute
 }
 export interface FileRouteTypes {
@@ -127,11 +89,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/dashboard'
     | '/order'
-    | '/products/electrical-dental-brush'
-    | '/products/h2o-water-flosser'
-    | '/products/l-shaped-interdental-brush'
-    | '/products/ortho-oral-kit'
-    | '/products/ortho-sheet'
+    | '/products/$slug'
     | '/products/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -140,11 +98,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/dashboard'
     | '/order'
-    | '/products/electrical-dental-brush'
-    | '/products/h2o-water-flosser'
-    | '/products/l-shaped-interdental-brush'
-    | '/products/ortho-oral-kit'
-    | '/products/ortho-sheet'
+    | '/products/$slug'
     | '/products'
   id:
     | '__root__'
@@ -153,11 +107,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/dashboard'
     | '/order'
-    | '/products/electrical-dental-brush'
-    | '/products/h2o-water-flosser'
-    | '/products/l-shaped-interdental-brush'
-    | '/products/ortho-oral-kit'
-    | '/products/ortho-sheet'
+    | '/products/$slug'
     | '/products/'
   fileRoutesById: FileRoutesById
 }
@@ -167,11 +117,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
   OrderRoute: typeof OrderRoute
-  ProductsElectricalDentalBrushRoute: typeof ProductsElectricalDentalBrushRoute
-  ProductsH2oWaterFlosserRoute: typeof ProductsH2oWaterFlosserRoute
-  ProductsLShapedInterdentalBrushRoute: typeof ProductsLShapedInterdentalBrushRoute
-  ProductsOrthoOralKitRoute: typeof ProductsOrthoOralKitRoute
-  ProductsOrthoSheetRoute: typeof ProductsOrthoSheetRoute
+  ProductsSlugRoute: typeof ProductsSlugRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
 }
 
@@ -219,39 +165,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/products/ortho-sheet': {
-      id: '/products/ortho-sheet'
-      path: '/products/ortho-sheet'
-      fullPath: '/products/ortho-sheet'
-      preLoaderRoute: typeof ProductsOrthoSheetRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products/ortho-oral-kit': {
-      id: '/products/ortho-oral-kit'
-      path: '/products/ortho-oral-kit'
-      fullPath: '/products/ortho-oral-kit'
-      preLoaderRoute: typeof ProductsOrthoOralKitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products/l-shaped-interdental-brush': {
-      id: '/products/l-shaped-interdental-brush'
-      path: '/products/l-shaped-interdental-brush'
-      fullPath: '/products/l-shaped-interdental-brush'
-      preLoaderRoute: typeof ProductsLShapedInterdentalBrushRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products/h2o-water-flosser': {
-      id: '/products/h2o-water-flosser'
-      path: '/products/h2o-water-flosser'
-      fullPath: '/products/h2o-water-flosser'
-      preLoaderRoute: typeof ProductsH2oWaterFlosserRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products/electrical-dental-brush': {
-      id: '/products/electrical-dental-brush'
-      path: '/products/electrical-dental-brush'
-      fullPath: '/products/electrical-dental-brush'
-      preLoaderRoute: typeof ProductsElectricalDentalBrushRouteImport
+    '/products/$slug': {
+      id: '/products/$slug'
+      path: '/products/$slug'
+      fullPath: '/products/$slug'
+      preLoaderRoute: typeof ProductsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -263,11 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
   OrderRoute: OrderRoute,
-  ProductsElectricalDentalBrushRoute: ProductsElectricalDentalBrushRoute,
-  ProductsH2oWaterFlosserRoute: ProductsH2oWaterFlosserRoute,
-  ProductsLShapedInterdentalBrushRoute: ProductsLShapedInterdentalBrushRoute,
-  ProductsOrthoOralKitRoute: ProductsOrthoOralKitRoute,
-  ProductsOrthoSheetRoute: ProductsOrthoSheetRoute,
+  ProductsSlugRoute: ProductsSlugRoute,
   ProductsIndexRoute: ProductsIndexRoute,
 }
 export const routeTree = rootRouteImport

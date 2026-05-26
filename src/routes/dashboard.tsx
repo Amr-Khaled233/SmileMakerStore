@@ -2031,7 +2031,6 @@ function ProductsSection({ token }: { token: string }) {
               const currentTagline = { en: textOv.taglineEn || p.tagline.en, ar: textOv.taglineAr || p.tagline.ar };
               const currentFeatures = textOv.features ?? [];
               const currentColors = textOv.colors ?? p.colors ?? [];
-              const hasAnyOverride = hasCustomImgs || !!(textOv.description || textOv.descriptionAr || textOv.taglineEn || textOv.taglineAr || textOv.features?.length || textOv.colors?.length);
 
               const isEditingDetails = editingStaticSlug === p.slug;
 
@@ -2059,8 +2058,6 @@ function ProductsSection({ token }: { token: string }) {
                             ))}
                           </div>
                         )}
-                        {hasCustomImgs && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">صور مخصصة</span>}
-                        {hasAnyOverride && <span className="text-[10px] bg-deep-blue/10 text-deep-blue border border-deep-blue/20 rounded-full px-2 py-0.5">معدّل</span>}
                         {isHidden && <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">مخفي</span>}
                       </div>
                     </div>
