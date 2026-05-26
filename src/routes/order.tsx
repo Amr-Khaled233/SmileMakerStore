@@ -66,9 +66,11 @@ function OrderPage() {
   useEffect(() => { api.getFreeShippingStatus().then((r) => setFreeShippingActive(r.active)).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicBundles().then(setUserCreatedBundles).catch(() => {}); }, []);
+  const [staticImageOverrides, setStaticImageOverrides] = useState<Record<string, string[]>>({});
   useEffect(() => {
     api.getProductsMeta().then((m) => {
       setBundleOverrides(m.bundleOverrides);
+      setStaticImageOverrides(m.imageOverrides ?? {});
       const colorOvs: Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]> = {};
       for (const [slug, ov] of Object.entries(m.staticOverrides ?? {})) {
         if (ov.colors?.length) colorOvs[slug] = ov.colors;
@@ -102,7 +104,7 @@ function OrderPage() {
         slug: p.slug,
         title: p.title,
         tagline: p.tagline as { en: string; ar: string },
-        image: p.image,
+        image: staticImageOverrides[p.slug]?.[0] ?? p.image,
         price: p.price,
         salePrice: p.salePrice,
         outOfStock: p.outOfStock ?? false,
@@ -121,7 +123,7 @@ function OrderPage() {
         colors: p.colors,
       })),
     ],
-    [products, dynamicProducts],
+    [products, dynamicProducts, staticImageOverrides],
   );
 
   const [confirmed, setConfirmed] = useState<null | {

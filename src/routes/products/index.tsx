@@ -15,18 +15,26 @@ function ProductsPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
   useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
-  useEffect(() => { api.getProductsMeta().then((m) => setHiddenSlugs(m.hidden)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.getProductsMeta().then((m) => {
+      setHiddenSlugs(m.hidden);
+      setImageOverrides(m.imageOverrides ?? {});
+    }).catch(() => {});
+  }, []);
   useEffect(() => { api.getDynamicBundles().then(setUserBundles).catch(() => {}); }, []);
 
   const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
+    const imgs = imageOverrides[p.slug];
     return {
       ...p,
       price: ov?.price ?? p.price,
       salePrice: ov !== undefined ? (ov.salePrice ?? undefined) : p.salePrice,
+      image: imgs?.[0] ?? p.image,
     };
   });
   const bundles = BUNDLES.map((b) => {
@@ -135,8 +143,9 @@ function ProductsPage() {
 
           <div className="mt-12 grid md:grid-cols-3 gap-6">
             {bundles.map((b) => {
-              const items = b.items.map((s) => products.find((p) => p.slug === s)!);
-              const total = items.reduce((s, i) => s + effectivePrice(i), 0);
+              const allProdsForBundle = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, image: imageOverrides[p.slug]?.[0] ?? p.images[0] ?? "" }))];
+              const items = b.items.map((s) => allProdsForBundle.find((p) => p.slug === s)!).filter(Boolean);
+              const total = items.reduce((s, i) => s + effectivePrice(i as Parameters<typeof effectivePrice>[0]), 0);
               const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
               const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
               return (
