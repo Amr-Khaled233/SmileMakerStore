@@ -27,7 +27,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; badge: 
 
 import { api, getToken, saveToken, clearToken } from "@/lib/api";
 import type { Order, OrderItem, InventoryEntry, Pricing, PromoCodeEntry, DynamicProduct, DynamicBundle, BundleOverride, StaticProductOverride } from "@/lib/api";
-import { PRODUCTS, BUNDLES, formatEGP, effectivePrice, H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY, WAX_GALLERY, LSHAPED_GALLERY } from "@/data/products";
+import { PRODUCTS, BUNDLES, PRODUCT_DETAILS, formatEGP, effectivePrice, H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY, WAX_GALLERY, LSHAPED_GALLERY, type ProductSlug } from "@/data/products";
 
 const PRODUCT_GALLERIES: Record<string, string[]> = {
   "h2o-water-flosser": H2O_GALLERY,
@@ -1679,7 +1679,7 @@ function ProductsSection({ token }: { token: string }) {
       descriptionAr: ov.descriptionAr ?? prod.description.ar,
       taglineEn: ov.taglineEn ?? prod.tagline.en,
       taglineAr: ov.taglineAr ?? prod.tagline.ar,
-      features: ov.features ? [...ov.features] : [],
+      features: ov.features ? [...ov.features] : [...(PRODUCT_DETAILS[slug as ProductSlug]?.features ?? [])],
       colors: ov.colors
         ? [...ov.colors]
         : prod.colors
@@ -2029,7 +2029,7 @@ function ProductsSection({ token }: { token: string }) {
               const textOv = staticOverrides[p.slug] ?? {};
               const currentDesc = { en: textOv.description || p.description.en, ar: textOv.descriptionAr || p.description.ar };
               const currentTagline = { en: textOv.taglineEn || p.tagline.en, ar: textOv.taglineAr || p.tagline.ar };
-              const currentFeatures = textOv.features ?? [];
+              const currentFeatures = textOv.features ?? PRODUCT_DETAILS[p.slug as ProductSlug]?.features ?? [];
               const currentColors = textOv.colors ?? p.colors ?? [];
 
               const isEditingDetails = editingStaticSlug === p.slug;
