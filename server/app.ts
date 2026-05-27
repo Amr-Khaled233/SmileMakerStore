@@ -7,6 +7,7 @@ import pricingRouter from "./routes/pricing.js";
 import settingsRouter from "./routes/settings.js";
 import productsRouter from "./routes/products.js";
 import bundlesRouter from "./routes/bundles.js";
+import reviewsRouter from "./routes/reviews.js";
 
 const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
   .split(",")
@@ -36,5 +37,6 @@ app.use("/api/pricing", pricingRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/bundles", bundlesRouter);
+app.use("/api/reviews", reviewsRouter);
 
 export default app;

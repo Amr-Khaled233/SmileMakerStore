@@ -134,6 +134,69 @@ export const Route = createFileRoute("/")({
 });
 
 
+function ReviewsSlider() {
+  const { t } = useT();
+  const [images, setImages] = useState<string[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    api.getReviewImages().then((imgs) => { setImages(imgs); setLoaded(true); }).catch(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || images.length === 0) return null;
+
+  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
+  const next = () => setIdx((i) => (i + 1) % images.length);
+
+  // Show up to 3 visible at once; center = idx
+  const visible = [-1, 0, 1].map((offset) => {
+    const i = (idx + offset + images.length) % images.length;
+    return { src: images[i], offset };
+  });
+
+  return (
+    <section className="section-pad bg-soft">
+      <div className="container-lux">
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <p className="eyebrow">{t("home.test.eyebrow")}</p>
+          <h2 className="mt-3 text-4xl md:text-5xl">{t("home.test.h")}</h2>
+        </div>
+        <div className="relative flex items-center justify-center gap-4">
+          <button onClick={prev} className="shrink-0 h-10 w-10 rounded-full border-2 border-border bg-white hover:bg-soft flex items-center justify-center transition-colors shadow-sm z-10">
+            <ChevronLeft className="h-5 w-5 text-ink" />
+          </button>
+          <div className="flex items-center gap-4 overflow-hidden w-full max-w-4xl justify-center">
+            {visible.map(({ src, offset }) => (
+              <div
+                key={src + offset}
+                onClick={() => setIdx((i) => (i + offset + images.length) % images.length)}
+                className={`shrink-0 rounded-2xl overflow-hidden border-2 transition-all duration-300 cursor-pointer ${
+                  offset === 0
+                    ? "w-64 sm:w-80 h-64 sm:h-80 border-deep-blue shadow-lg scale-100 z-10"
+                    : "w-44 sm:w-56 h-44 sm:h-56 border-border opacity-60 scale-95 hidden sm:block"
+                }`}
+              >
+                <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+              </div>
+            ))}
+          </div>
+          <button onClick={next} className="shrink-0 h-10 w-10 rounded-full border-2 border-border bg-white hover:bg-soft flex items-center justify-center transition-colors shadow-sm z-10">
+            <ChevronRight className="h-5 w-5 text-ink" />
+          </button>
+        </div>
+        {/* Dots */}
+        <div className="flex justify-center gap-2 mt-6">
+          {images.map((_, i) => (
+            <button key={i} onClick={() => setIdx(i)}
+              className={`h-2 rounded-full transition-all ${i === idx ? "w-6 bg-deep-blue" : "w-2 bg-border"}`} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const FEATURED_SLUGS = ["h2o-water-flosser", "ortho-oral-kit"];
 
 function HomePage() {
@@ -170,11 +233,6 @@ function HomePage() {
     { icon: Truck, t: { en: "Fast Delivery", ar: "توصيل سريع" }, x: { en: "Free worldwide.", ar: "توصيل لكل المحافظات." } },
   ];
 
-  const testimonials: { name: string; role: L; quote: L }[] = [
-    { name: "Amelia Reyes", role: { en: "Stylist · LA", ar: "مصممة · لوس أنجلوس" }, quote: { en: "I've tried every device on the market. Nothing comes close to the finish of the H2O Flosser.", ar: "جربت كل الأجهزة في السوق. لا شيء يقترب من نتائج H2O Flosser." } },
-    { name: "Daniel Karim", role: { en: "Architect · NYC", ar: "مهندس · نيويورك" }, quote: { en: "Sleek, quiet, and effective. It earned a permanent spot on my marble counter.", ar: "أنيق وهادئ وفعّال. حصل على مكانه الدائم على رف الرخام." } },
-    { name: "Sofia Lindqvist", role: { en: "Photographer · Stockholm", ar: "مصورة · ستوكهولم" }, quote: { en: "My smile actually photographs differently. I cannot recommend this kit enough.", ar: "ابتسامتي صارت تظهر مختلفة في الصور. أنصح به بشدة." } },
-  ];
 
   return (
     <Layout>
@@ -343,31 +401,7 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="section-pad bg-soft">
-        <div className="container-lux">
-          <div className="text-center max-w-xl mx-auto">
-            <p className="eyebrow">{t("home.test.eyebrow")}</p>
-            <h2 className="mt-3 text-4xl md:text-5xl">{t("home.test.h")}</h2>
-          </div>
-          <div className="mt-12 grid md:grid-cols-3 gap-6">
-            {testimonials.map((tt) => (
-              <div key={tt.name} className="lux-card p-8">
-                <div className="flex gap-1 text-deep-blue">
-                  {Array.from({ length: 5 }).map((_, i) => (<Star key={i} className="h-4 w-4 fill-current" />))}
-                </div>
-                <p className="mt-4 italic text-muted-foreground leading-relaxed">"{tl(tt.quote)}"</p>
-                <div className="mt-6 flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-brand text-white flex items-center justify-center font-semibold">{tt.name[0]}</div>
-                  <div>
-                    <p className="text-sm font-medium text-ink" dir="ltr">{tt.name}</p>
-                    <p className="text-xs text-muted-foreground">{tl(tt.role)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ReviewsSlider />
 
       <section className="section-pad">
         <div className="container-lux">

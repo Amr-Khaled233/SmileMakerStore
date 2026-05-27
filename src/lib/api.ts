@@ -165,6 +165,14 @@ export const api = {
     req<{ success: boolean }>("PUT", "/settings/free-shipping", { from, to }, token),
   clearFreeShipping: (token: string) =>
     req<{ success: boolean }>("DELETE", "/settings/free-shipping", undefined, token),
+
+  // Review images (homepage slider)
+  getReviewImages: () =>
+    req<string[]>("GET", "/reviews"),
+  addReviewImage: (token: string, image: string) =>
+    req<{ success: boolean }>("POST", "/reviews", { image }, token),
+  deleteReviewImage: (token: string, idx: number) =>
+    req<{ success: boolean }>("DELETE", `/reviews/${idx}`, undefined, token),
 };
 
 // Manager token helpers — sessionStorage so the token is cleared when the browser tab/session closes.
