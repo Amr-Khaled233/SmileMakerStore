@@ -1015,11 +1015,12 @@ function PricingSection({ token }: { token: string }) {
       </section>
       )}
 
-      {/* Bundle Prices */}
+      {/* Bundle Prices — all bundles unified */}
       <section>
         <h3 className="font-display text-xl mb-1">أسعار الباقات</h3>
         <p className="text-xs text-muted-foreground mb-4">سعر الباقة الكامل اللي بيدفعه العميل. الفرق بينه وبين مجموع المنتجات هو الخصم.</p>
         <div className="space-y-3">
+          {/* Static/original bundles */}
           {BUNDLES.map((b) => {
             const itemsSum = b.items.reduce((s, slug) => {
               const p = PRODUCTS.find((x) => x.slug === slug)!;
@@ -1043,20 +1044,51 @@ function PricingSection({ token }: { token: string }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      type="number"
-                      min={0}
-                      value={inputVal}
-                      placeholder={String(defaultPrice)}
+                    <input type="number" min={0} value={inputVal} placeholder={String(defaultPrice)}
                       onChange={(e) => setBundleDrafts((d) => ({ ...d, [b.id]: e.target.value }))}
-                      className="w-24 text-center lux-input text-sm"
-                    />
+                      className="w-24 text-center lux-input text-sm" />
                     <span className="text-xs text-muted-foreground">جنيه</span>
-                    <button
-                      onClick={() => saveBundlePrice(b.id)}
-                      disabled={saving[b.id]}
-                      className="btn-ghost text-xs py-2 px-4 disabled:opacity-50"
-                    >
+                    <button onClick={() => saveBundlePrice(b.id)} disabled={saving[b.id]}
+                      className="btn-ghost text-xs py-2 px-4 disabled:opacity-50">
+                      {saving[b.id] ? "..." : "حفظ"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {/* User-created bundles — same style */}
+          {userBundles.map((b) => {
+            const itemsSum = b.items.reduce((s, slug) => {
+              const sp = PRODUCTS.find((x) => x.slug === slug);
+              if (sp) return s + effectivePrice(sp);
+              const dp = dynProds.find((x) => x.slug === slug);
+              if (dp) return s + (dp.salePrice ?? dp.price);
+              return s;
+            }, 0);
+            const inputVal = userBundleDrafts[b.id] ?? "";
+            const currentPrice = inputVal !== "" ? Number(inputVal) : NaN;
+            const savings = !isNaN(currentPrice) ? Math.max(0, itemsSum - currentPrice) : 0;
+            const savingsPct = itemsSum > 0 && !isNaN(currentPrice) ? Math.round((savings / itemsSum) * 100) : 0;
+            return (
+              <div key={b.id} className="lux-card p-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-ink text-sm">{b.titleAr}</p>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                      {itemsSum > 0 && <span>المجموع الأصلي: <span className="font-medium text-ink">{formatEGP(itemsSum)}</span></span>}
+                      {!isNaN(currentPrice) && savings > 0 && (
+                        <span className="text-deep-blue font-medium">· وفر {formatEGP(savings)} ({savingsPct}%)</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input type="number" min={0} value={inputVal}
+                      onChange={(e) => setUserBundleDrafts((d) => ({ ...d, [b.id]: e.target.value }))}
+                      className="w-24 text-center lux-input text-sm" />
+                    <span className="text-xs text-muted-foreground">جنيه</span>
+                    <button onClick={() => saveUserBundlePrice(b.id)} disabled={saving[b.id]}
+                      className="btn-ghost text-xs py-2 px-4 disabled:opacity-50">
                       {saving[b.id] ? "..." : "حفظ"}
                     </button>
                   </div>
@@ -1066,43 +1098,6 @@ function PricingSection({ token }: { token: string }) {
           })}
         </div>
       </section>
-
-      {/* User-created Bundle Prices */}
-      {userBundles.length > 0 && (
-      <section>
-        <h3 className="font-display text-xl mb-1">أسعار الباقات المضافة</h3>
-        <p className="text-xs text-muted-foreground mb-4">السعر المباشر للباقات اللي أضفتها.</p>
-        <div className="space-y-3">
-          {userBundles.map((b) => (
-            <div key={b.id} className="lux-card p-4">
-              <div className="flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-ink text-sm">{b.titleAr}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{b.items.length} منتجات</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <input
-                    type="number"
-                    min={0}
-                    value={userBundleDrafts[b.id] ?? ""}
-                    onChange={(e) => setUserBundleDrafts((d) => ({ ...d, [b.id]: e.target.value }))}
-                    className="w-24 text-center lux-input text-sm"
-                  />
-                  <span className="text-xs text-muted-foreground">جنيه</span>
-                  <button
-                    onClick={() => saveUserBundlePrice(b.id)}
-                    disabled={saving[b.id]}
-                    className="btn-ghost text-xs py-2 px-4 disabled:opacity-50"
-                  >
-                    {saving[b.id] ? "..." : "حفظ"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      )}
 
       {/* Promo Codes */}
       <section>
