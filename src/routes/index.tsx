@@ -135,9 +135,8 @@ export const Route = createFileRoute("/")({
 
 
 function ReviewsSlider() {
-  const { t } = useT();
+  const { lang } = useT();
   const [images, setImages] = useState<string[]>([]);
-  const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -146,50 +145,30 @@ function ReviewsSlider() {
 
   if (!loaded || images.length === 0) return null;
 
-  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
-  const next = () => setIdx((i) => (i + 1) % images.length);
-
-  // Show up to 3 visible at once; center = idx
-  const visible = [-1, 0, 1].map((offset) => {
-    const i = (idx + offset + images.length) % images.length;
-    return { src: images[i], offset };
-  });
+  // Duplicate enough times to fill the strip seamlessly
+  const copies = images.length < 4 ? 4 : 2;
+  const strip = Array.from({ length: copies }, () => images).flat();
 
   return (
-    <section className="section-pad bg-soft">
+    <section className="section-pad bg-soft overflow-hidden">
       <div className="container-lux">
         <div className="text-center max-w-xl mx-auto mb-10">
-          <p className="eyebrow">{t("home.test.eyebrow")}</p>
-          <h2 className="mt-3 text-4xl md:text-5xl">{t("home.test.h")}</h2>
+          <p className="eyebrow">{lang === "ar" ? "آراء العملاء" : "Customer Reviews"}</p>
+          <h2 className="mt-3 text-4xl md:text-5xl">
+            {lang === "ar" ? "ماذا يقول عملاؤنا" : "What our customers say"}
+          </h2>
         </div>
-        <div className="relative flex items-center justify-center gap-4">
-          <button onClick={prev} className="shrink-0 h-10 w-10 rounded-full border-2 border-border bg-white hover:bg-soft flex items-center justify-center transition-colors shadow-sm z-10">
-            <ChevronLeft className="h-5 w-5 text-ink" />
-          </button>
-          <div className="flex items-center gap-4 overflow-hidden w-full max-w-4xl justify-center">
-            {visible.map(({ src, offset }) => (
-              <div
-                key={src + offset}
-                onClick={() => setIdx((i) => (i + offset + images.length) % images.length)}
-                className={`shrink-0 rounded-2xl overflow-hidden border-2 transition-all duration-300 cursor-pointer ${
-                  offset === 0
-                    ? "w-64 sm:w-80 h-64 sm:h-80 border-deep-blue shadow-lg scale-100 z-10"
-                    : "w-44 sm:w-56 h-44 sm:h-56 border-border opacity-60 scale-95 hidden sm:block"
-                }`}
-              >
-                <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
-          <button onClick={next} className="shrink-0 h-10 w-10 rounded-full border-2 border-border bg-white hover:bg-soft flex items-center justify-center transition-colors shadow-sm z-10">
-            <ChevronRight className="h-5 w-5 text-ink" />
-          </button>
-        </div>
-        {/* Dots */}
-        <div className="flex justify-center gap-2 mt-6">
-          {images.map((_, i) => (
-            <button key={i} onClick={() => setIdx(i)}
-              className={`h-2 rounded-full transition-all ${i === idx ? "w-6 bg-deep-blue" : "w-2 bg-border"}`} />
+      </div>
+      {/* Full-width scrolling strip — no container constraint */}
+      <div className="overflow-hidden">
+        <div
+          className="animate-marquee flex gap-5"
+          style={{ width: `${strip.length * (288 + 20)}px` }}
+        >
+          {strip.map((src, i) => (
+            <div key={i} className="shrink-0 w-72 h-72 rounded-2xl overflow-hidden border border-border shadow-sm">
+              <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+            </div>
           ))}
         </div>
       </div>

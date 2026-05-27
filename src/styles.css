@@ -261,3 +261,14 @@ html[dir="rtl"] h4 {
   font-family: "Tajawal", "Cairo", var(--font-display);
   letter-spacing: 0;
 }
+
+@keyframes marquee-ltr {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee-ltr 30s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
