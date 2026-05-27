@@ -1673,7 +1673,7 @@ function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDelete: (id
 // ─── Products Management Section ─────────────────────────────────────────────
 
 function ProductsSection({ token }: { token: string }) {
-  const [subTab, setSubTab] = useState<"dynamic" | "static" | "bundles">("dynamic");
+  const [subTab, setSubTab] = useState<"products" | "add" | "bundles">("products");
 
   // Dynamic products
   const [products, setProducts] = useState<DynamicProduct[]>([]);
@@ -1689,6 +1689,9 @@ function ProductsSection({ token }: { token: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const pendingProductId = useRef<string | null>(null);
+  const [dynSettingPrimary, setDynSettingPrimary] = useState<string | null>(null);
+  const dynReplacingIdx = useRef<{ id: string; idx: number } | null>(null);
+  const dynReplaceFileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit dynamic product
   const [editingDynId, setEditingDynId] = useState<string | null>(null);
@@ -1848,6 +1851,28 @@ function ProductsSection({ token }: { token: string }) {
   const removeImage = async (id: string, idx: number) => {
     await api.removeProductImage(token, id, idx);
     setProducts((prev) => prev.map((p) => p.id === id ? { ...p, images: p.images.filter((_, i) => i !== idx) } : p));
+  };
+
+  const openDynReplaceImagePicker = (id: string, idx: number) => {
+    dynReplacingIdx.current = { id, idx };
+    dynReplaceFileInputRef.current?.click();
+  };
+  const onDynReplaceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; const info = dynReplacingIdx.current;
+    if (!file || !info) return; e.target.value = "";
+    setDynSettingPrimary(`${info.id}:r${info.idx}`);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      await api.replaceDynProductImage(token, info.id, info.idx, ev.target?.result as string).catch(() => {});
+      await load(); setDynSettingPrimary(null);
+    };
+    reader.readAsDataURL(file);
+  };
+  const setDynImagePrimary = async (id: string, idx: number) => {
+    if (idx === 0) return;
+    setDynSettingPrimary(`${id}:${idx}`);
+    await api.setDynProductImagePrimary(token, id, idx).catch(() => {});
+    await load(); setDynSettingPrimary(null);
   };
 
   const addFeature = () => setForm((f) => ({ ...f, features: [...f.features, { en: "", ar: "" }] }));
@@ -2056,20 +2081,21 @@ function ProductsSection({ token }: { token: string }) {
       <input ref={primaryFileInputRef} type="file" accept="image/*" className="hidden" onChange={onPrimaryFileChange} />
       <input ref={staticFileInputRef} type="file" accept="image/*" className="hidden" onChange={onStaticFileChange} />
       <input ref={staticReplaceFileInputRef} type="file" accept="image/*" className="hidden" onChange={onStaticReplaceFileChange} />
+      <input ref={dynReplaceFileInputRef} type="file" accept="image/*" className="hidden" onChange={onDynReplaceFileChange} />
 
       {/* Sub-tab switcher */}
       <div className="flex gap-2 flex-wrap">
-        {(["dynamic", "static", "bundles"] as const).map((key) => (
+        {(["products", "add", "bundles"] as const).map((key) => (
           <button key={key} onClick={() => setSubTab(key)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${subTab === key ? "bg-brand text-white" : "bg-soft border border-border text-ink hover:bg-white"}`}
           >
-            {key === "dynamic" ? "منتجات مضافة" : key === "static" ? "المنتجات الأصلية" : "الباقات"}
+            {key === "products" ? "المنتجات" : key === "add" ? "إضافة منتج" : "الباقات"}
           </button>
         ))}
       </div>
 
-      {/* ── Dynamic products ── */}
-      {subTab === "dynamic" && (
+      {/* ── Add product (creation form only) ── */}
+      {subTab === "add" && (
         <div className="space-y-8">
           <section>
             <h3 className="font-display text-xl mb-4">إضافة منتج جديد</h3>
@@ -2168,197 +2194,13 @@ function ProductsSection({ token }: { token: string }) {
             </div>
           </section>
 
-          <section>
-            <h3 className="font-display text-xl mb-4">المنتجات المضافة ({products.length})</h3>
-            {products.length === 0 ? (
-              <p className="text-center py-12 text-muted-foreground text-sm">لا توجد منتجات مضافة بعد</p>
-            ) : (
-              <div className="space-y-4">
-                {products.map((p) => (
-                  <div key={p.id} className="lux-card p-5">
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div>
-                        <p className="font-display text-lg" dir="ltr">{p.title}</p>
-                        <p className="text-sm text-muted-foreground">{p.titleAr}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
-                        <div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
-                          <span className="font-medium text-ink">{p.price.toLocaleString("ar-EG")} ج.م</span>
-                          {p.salePrice && <span className="text-emerald-600">{p.salePrice.toLocaleString("ar-EG")} ج.م (خصم)</span>}
-                          {p.colors?.length ? (
-                            <div className="flex gap-1">
-                              {p.colors.map((c) => <span key={c.id} className="h-4 w-4 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} title={c.label.en} />)}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => editingDynId === p.id ? setEditingDynId(null) : startEditDyn(p)}
-                          className="flex items-center gap-1.5 text-xs text-deep-blue hover:text-deep-blue/80 border border-deep-blue/30 hover:bg-deep-blue/5 rounded-lg px-3 py-1.5 transition-colors">
-                          <Pencil className="h-3.5 w-3.5" /> {editingDynId === p.id ? "إلغاء" : "تعديل"}
-                        </button>
-                        <button onClick={() => deleteProduct(p.id)}
-                          className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" /> حذف
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inline edit form */}
-                    {editingDynId === p.id && (
-                      <div className="mt-4 pt-4 border-t border-border space-y-3">
-                        <p className="text-xs font-medium text-ink">تعديل بيانات المنتج</p>
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">الاسم (EN)</label>
-                            <input className="lux-input text-sm" dir="ltr" value={dynEditForm.title}
-                              onChange={(e) => setDynEditForm((f) => ({ ...f, title: e.target.value }))} placeholder="Product name" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">الاسم (AR)</label>
-                            <input className="lux-input text-sm" dir="rtl" value={dynEditForm.titleAr}
-                              onChange={(e) => setDynEditForm((f) => ({ ...f, titleAr: e.target.value }))} placeholder="اسم المنتج" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
-                            <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.price}
-                              onChange={(e) => setDynEditForm((f) => ({ ...f, price: e.target.value }))} placeholder="0" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
-                            <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.salePrice}
-                              onChange={(e) => setDynEditForm((f) => ({ ...f, salePrice: e.target.value }))} placeholder="0" />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (EN)</label>
-                          <textarea className="lux-input text-sm resize-none" rows={2} dir="ltr" value={dynEditForm.description}
-                            onChange={(e) => setDynEditForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description..." />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">الوصف (AR)</label>
-                          <textarea className="lux-input text-sm resize-none" rows={2} dir="rtl" value={dynEditForm.descriptionAr}
-                            onChange={(e) => setDynEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} placeholder="الوصف..." />
-                        </div>
-                        {/* Features */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs text-muted-foreground">المميزات</label>
-                            <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: [...f.features, { en: "", ar: "" }] }))}
-                              className="text-xs text-deep-blue hover:underline">+ إضافة</button>
-                          </div>
-                          <div className="space-y-2">
-                            {dynEditForm.features.map((feat, i) => (
-                              <div key={i} className="flex gap-2 items-center">
-                                <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Feature EN" value={feat.en}
-                                  onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, en: e.target.value } : x) }))} />
-                                <input className="lux-input text-xs flex-1" dir="rtl" placeholder="الميزة" value={feat.ar}
-                                  onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, ar: e.target.value } : x) }))} />
-                                <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }))}
-                                  className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {/* Colors */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs text-muted-foreground">الألوان</label>
-                            <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: [...f.colors, { id: `c${Date.now()}`, label: { en: "", ar: "" }, hex: "#4B9CD3" }] }))}
-                              className="text-xs text-deep-blue hover:underline">+ إضافة لون</button>
-                          </div>
-                          {dynEditForm.colors.length === 0 ? <p className="text-xs text-muted-foreground">بدون ألوان</p> : (
-                            <div className="space-y-2">
-                              {dynEditForm.colors.map((c, i) => (
-                                <div key={i} className="flex gap-2 items-center">
-                                  <input type="color" value={c.hex}
-                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, hex: e.target.value } : x) }))}
-                                    className="h-9 w-12 rounded-lg border border-border cursor-pointer p-1 shrink-0" />
-                                  <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Color EN" value={c.label.en}
-                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, en: e.target.value } } : x) }))} />
-                                  <input className="lux-input text-xs flex-1" dir="rtl" placeholder="اللون" value={c.label.ar}
-                                    onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, ar: e.target.value } } : x) }))} />
-                                  <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: f.colors.filter((_, idx) => idx !== i) }))}
-                                    className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={() => saveDynEdit(p.id)} disabled={savingDynEdit || !dynEditForm.title || !dynEditForm.titleAr || !dynEditForm.price}
-                            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                            {savingDynEdit ? "جاري الحفظ..." : "حفظ التعديلات"}
-                          </button>
-                          <button onClick={() => setEditingDynId(null)} className="btn-ghost text-sm">إلغاء</button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="mt-4 pt-4 border-t border-border space-y-4">
-                      {/* Primary image */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-ink">الصورة الأساسية</p>
-                          <button onClick={() => openPrimaryImagePicker(p.id)} disabled={primaryUploadingFor === p.id}
-                            className="btn-ghost text-xs py-1 px-3 disabled:opacity-50">
-                            {primaryUploadingFor === p.id ? "جاري الرفع..." : p.images[0] ? "استبدال" : "+ رفع صورة"}
-                          </button>
-                        </div>
-                        {p.images[0] ? (
-                          <div className="relative group w-fit">
-                            <img src={p.images[0]} alt="" className="h-28 w-28 object-cover rounded-xl border-2 border-deep-blue/30" />
-                            <button onClick={() => removeImage(p.id, 0)}
-                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => openPrimaryImagePicker(p.id)} disabled={primaryUploadingFor === p.id}
-                            className="h-28 w-28 rounded-xl border-2 border-dashed border-border flex items-center justify-center text-xs text-muted-foreground hover:border-deep-blue/40 hover:bg-soft transition-colors disabled:opacity-50">
-                            {primaryUploadingFor === p.id ? "..." : "+ صورة"}
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Gallery images */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-ink">
-                            صور فرعية {p.images.length > 1 ? `(${p.images.length - 1})` : ""}
-                          </p>
-                          <button onClick={() => openImagePicker(p.id)} disabled={uploadingFor === p.id}
-                            className="btn-ghost text-xs py-1 px-3 disabled:opacity-50">
-                            {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة فرعية"}
-                          </button>
-                        </div>
-                        {p.images.length <= 1 ? (
-                          <p className="text-xs text-muted-foreground">لا توجد صور فرعية بعد</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {p.images.slice(1).map((src, relIdx) => {
-                              const idx = relIdx + 1;
-                              return (
-                                <div key={idx} className="relative group">
-                                  <img src={src} alt="" className="h-16 w-16 object-cover rounded-lg border border-border" />
-                                  <button onClick={() => removeImage(p.id, idx)}
-                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
         </div>
       )}
 
-      {/* ── Static products ── */}
-      {subTab === "static" && (
+      {/* ── All products (static + dynamic unified) ── */}
+      {subTab === "products" && (
         <section>
-          <h3 className="font-display text-xl mb-4">المنتجات الأصلية ({PRODUCTS.length})</h3>
+          <h3 className="font-display text-xl mb-4">المنتجات ({PRODUCTS.length + products.length})</h3>
           <div className="space-y-6">
             {PRODUCTS.map((p) => {
               const customImgs = imageOverrides[p.slug] ?? [];
@@ -2644,6 +2486,248 @@ function ProductsSection({ token }: { token: string }) {
               );
             })}
           </div>
+
+          {/* ── Dynamic products — unified with static ── */}
+          {products.length > 0 && (
+            <div className="space-y-6 mt-6">
+              <div className="border-t border-border pt-6">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-4">منتجات مضافة</p>
+              </div>
+              {products.map((p) => {
+                const isHidden = hiddenSlugs.includes(p.slug);
+                const priceOv = pricingOverrides[p.slug];
+                const displayPrice = priceOv?.price ?? p.price;
+                const displaySalePrice = priceOv !== undefined ? (priceOv.salePrice ?? undefined) : p.salePrice;
+                const isEditingDetails = editingDynId === p.id;
+
+                return (
+                  <div key={p.id} className={`lux-card p-5 space-y-5 transition-opacity ${isHidden ? "opacity-60" : ""}`}>
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <p className="font-display text-xl" dir="ltr">{p.title}</p>
+                        <p className="text-sm text-muted-foreground">{p.titleAr}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">/{p.slug}</p>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span className="text-sm font-semibold text-ink">
+                            {(displaySalePrice ?? displayPrice).toLocaleString("ar-EG")} ج.م
+                          </span>
+                          {displaySalePrice && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              {displayPrice.toLocaleString("ar-EG")} ج.م
+                            </span>
+                          )}
+                          {(p.colors?.length ?? 0) > 0 && (
+                            <div className="flex gap-1">
+                              {p.colors!.map((c) => (
+                                <span key={c.id} className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} title={c.label.ar || c.label.en} />
+                              ))}
+                            </div>
+                          )}
+                          {isHidden && <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">مخفي</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => toggleHidden(p.slug, isHidden)} disabled={togglingHidden === p.slug}
+                          className={`text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 ${isHidden ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
+                          {togglingHidden === p.slug ? "..." : isHidden ? "إظهار" : "إخفاء"}
+                        </button>
+                        <button onClick={() => deleteProduct(p.id)}
+                          className="text-xs border border-destructive/30 text-destructive rounded-lg px-3 py-1.5 hover:bg-destructive/5 transition-colors">
+                          <Trash2 className="h-3 w-3 inline-block me-1" />حذف
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Images */}
+                    <div className="border-t border-border pt-4 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="text-xs font-medium text-ink">الصور ({p.images.length})</p>
+                        <button onClick={() => openImagePicker(p.id)} disabled={uploadingFor === p.id}
+                          className="btn-ghost text-xs py-1.5 px-3 disabled:opacity-50">
+                          {uploadingFor === p.id ? "جاري الرفع..." : "+ إضافة صورة"}
+                        </button>
+                      </div>
+                      {p.images.length === 0 ? (
+                        <button onClick={() => openPrimaryImagePicker(p.id)} disabled={primaryUploadingFor === p.id}
+                          className="h-20 w-20 rounded-xl border-2 border-dashed border-border flex items-center justify-center text-xs text-muted-foreground hover:border-deep-blue/40 hover:bg-soft transition-colors disabled:opacity-50">
+                          {primaryUploadingFor === p.id ? "..." : "+ صورة"}
+                        </button>
+                      ) : (
+                        <div className="flex flex-wrap gap-3">
+                          {p.images.map((src, idx) => {
+                            const isPrimary = idx === 0;
+                            const settingThis = dynSettingPrimary === `${p.id}:${idx}`;
+                            const replacingThis = dynSettingPrimary === `${p.id}:r${idx}`;
+                            return (
+                              <div key={`${src}-${idx}`} className="relative group flex flex-col items-center gap-1">
+                                <div className={`relative h-20 w-20 rounded-xl border-2 overflow-hidden ${isPrimary ? "border-deep-blue" : "border-border"}`}>
+                                  <img src={src} alt="" className="w-full h-full object-cover" />
+                                  <button onClick={() => removeImage(p.id, idx)}
+                                    className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">×</button>
+                                </div>
+                                <div className="flex gap-1">
+                                  {isPrimary ? (
+                                    <span className="text-[9px] text-deep-blue font-medium px-1">أساسية</span>
+                                  ) : (
+                                    <button onClick={() => setDynImagePrimary(p.id, idx)} disabled={!!settingThis}
+                                      className="h-6 px-1.5 rounded-md bg-deep-blue/10 text-deep-blue text-[9px] font-medium hover:bg-deep-blue/20 transition-colors disabled:opacity-50">
+                                      {settingThis ? "..." : "⭐ أساسية"}
+                                    </button>
+                                  )}
+                                  <button onClick={() => openDynReplaceImagePicker(p.id, idx)} disabled={replacingThis}
+                                    className="h-6 px-1.5 rounded-md bg-soft border border-border text-[9px] hover:bg-white transition-colors disabled:opacity-50">
+                                    {replacingThis ? "..." : "بدّل"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="border-t border-border pt-4">
+                      {!isEditingDetails ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-ink">التفاصيل</p>
+                            <button onClick={() => startEditDyn(p)}
+                              className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors">
+                              تعديل
+                            </button>
+                          </div>
+                          {(p.description || p.descriptionAr) && (
+                            <div className="bg-soft rounded-xl px-4 py-3 space-y-1">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">الوصف</p>
+                              {p.descriptionAr && <p className="text-sm text-ink leading-relaxed line-clamp-3" dir="rtl">{p.descriptionAr}</p>}
+                              {p.description && <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mt-1" dir="ltr">{p.description}</p>}
+                            </div>
+                          )}
+                          {(p.features?.length ?? 0) > 0 && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">المميزات</p>
+                              <div className="space-y-1">
+                                {p.features!.map((f, i) => (
+                                  <div key={i} className="flex items-start gap-2 text-xs">
+                                    <span className="text-deep-blue mt-0.5 shrink-0">✓</span>
+                                    <span dir="rtl">{f.ar}</span>
+                                    {f.en && <span className="text-muted-foreground" dir="ltr">· {f.en}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {(p.colors?.length ?? 0) > 0 && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">الألوان ({p.colors!.length})</p>
+                              <div className="flex flex-wrap gap-2">
+                                {p.colors!.map((c) => (
+                                  <div key={c.id} className="flex items-center gap-1.5 text-xs bg-soft border border-border rounded-full px-2.5 py-1">
+                                    <span className="h-3 w-3 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }} />
+                                    <span>{c.label.ar || c.label.en}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-border space-y-3">
+                          <p className="text-xs font-medium text-ink">تعديل بيانات المنتج</p>
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">الاسم (EN)</label>
+                              <input className="lux-input text-sm" dir="ltr" value={dynEditForm.title}
+                                onChange={(e) => setDynEditForm((f) => ({ ...f, title: e.target.value }))} placeholder="Product name" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">الاسم (AR)</label>
+                              <input className="lux-input text-sm" dir="rtl" value={dynEditForm.titleAr}
+                                onChange={(e) => setDynEditForm((f) => ({ ...f, titleAr: e.target.value }))} placeholder="اسم المنتج" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">السعر (ج.م)</label>
+                              <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.price}
+                                onChange={(e) => setDynEditForm((f) => ({ ...f, price: e.target.value }))} placeholder="0" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground mb-1 block">سعر الخصم (اختياري)</label>
+                              <input className="lux-input text-sm" type="number" min={0} dir="ltr" value={dynEditForm.salePrice}
+                                onChange={(e) => setDynEditForm((f) => ({ ...f, salePrice: e.target.value }))} placeholder="0" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف (EN)</label>
+                            <textarea className="lux-input text-sm resize-none" rows={2} dir="ltr" value={dynEditForm.description}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description..." />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">الوصف (AR)</label>
+                            <textarea className="lux-input text-sm resize-none" rows={2} dir="rtl" value={dynEditForm.descriptionAr}
+                              onChange={(e) => setDynEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} placeholder="الوصف..." />
+                          </div>
+                          {/* Features */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs text-muted-foreground">المميزات</label>
+                              <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: [...f.features, { en: "", ar: "" }] }))}
+                                className="text-xs text-deep-blue hover:underline">+ إضافة</button>
+                            </div>
+                            <div className="space-y-2">
+                              {dynEditForm.features.map((feat, i) => (
+                                <div key={i} className="flex gap-2 items-center">
+                                  <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Feature EN" value={feat.en}
+                                    onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, en: e.target.value } : x) }))} />
+                                  <input className="lux-input text-xs flex-1" dir="rtl" placeholder="الميزة" value={feat.ar}
+                                    onChange={(e) => setDynEditForm((f) => ({ ...f, features: f.features.map((x, idx) => idx === i ? { ...x, ar: e.target.value } : x) }))} />
+                                  <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }))}
+                                    className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Colors */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs text-muted-foreground">الألوان</label>
+                              <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: [...f.colors, { id: `c${Date.now()}`, label: { en: "", ar: "" }, hex: "#4B9CD3" }] }))}
+                                className="text-xs text-deep-blue hover:underline">+ إضافة لون</button>
+                            </div>
+                            {dynEditForm.colors.length === 0 ? <p className="text-xs text-muted-foreground">بدون ألوان</p> : (
+                              <div className="space-y-2">
+                                {dynEditForm.colors.map((c, i) => (
+                                  <div key={i} className="flex gap-2 items-center">
+                                    <input type="color" value={c.hex}
+                                      onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, hex: e.target.value } : x) }))}
+                                      className="h-9 w-12 rounded-lg border border-border cursor-pointer p-1 shrink-0" />
+                                    <input className="lux-input text-xs flex-1" dir="ltr" placeholder="Color EN" value={c.label.en}
+                                      onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, en: e.target.value } } : x) }))} />
+                                    <input className="lux-input text-xs flex-1" dir="rtl" placeholder="اللون" value={c.label.ar}
+                                      onChange={(e) => setDynEditForm((f) => ({ ...f, colors: f.colors.map((x, idx) => idx === i ? { ...x, label: { ...x.label, ar: e.target.value } } : x) }))} />
+                                    <button type="button" onClick={() => setDynEditForm((f) => ({ ...f, colors: f.colors.filter((_, idx) => idx !== i) }))}
+                                      className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={() => saveDynEdit(p.id)} disabled={savingDynEdit || !dynEditForm.title || !dynEditForm.titleAr || !dynEditForm.price}
+                              className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                              {savingDynEdit ? "جاري الحفظ..." : "حفظ التعديلات"}
+                            </button>
+                            <button onClick={() => setEditingDynId(null)} className="btn-ghost text-sm">إلغاء</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 

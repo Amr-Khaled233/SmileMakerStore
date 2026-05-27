@@ -157,6 +157,40 @@ router.put("/:id/images/primary", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Move image at :idx to index 0 (set as primary, no re-upload)
+router.patch("/:id/images/:idx/primary", requireAuth, async (req, res) => {
+  const idx = Number(req.params.idx);
+  const db = await readDb();
+  const product = db.dynamicProducts.find((p) => p.id === req.params.id);
+  if (!product) { res.status(404).json({ error: "Not found" }); return; }
+  if (isNaN(idx) || idx < 0 || idx >= product.images.length) {
+    res.status(400).json({ error: "Invalid index" }); return;
+  }
+  const [img] = product.images.splice(idx, 1);
+  product.images.unshift(img);
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Replace image at :idx (upload new one)
+router.put("/:id/images/:idx", requireAuth, async (req, res) => {
+  const { image } = req.body as { image?: string };
+  if (!image || !image.startsWith("data:image/")) {
+    res.status(400).json({ error: "Invalid image data" }); return;
+  }
+  const idx = Number(req.params.idx);
+  const url = await uploadImage(image);
+  const db = await readDb();
+  const product = db.dynamicProducts.find((p) => p.id === req.params.id);
+  if (!product) { res.status(404).json({ error: "Not found" }); return; }
+  if (isNaN(idx) || idx < 0 || idx >= product.images.length) {
+    res.status(400).json({ error: "Invalid index" }); return;
+  }
+  product.images[idx] = url;
+  await writeDb(db);
+  res.json({ success: true });
+});
+
 router.delete("/:id/images/:idx", requireAuth, async (req, res) => {
   const idx = Number(req.params.idx);
   const db = await readDb();

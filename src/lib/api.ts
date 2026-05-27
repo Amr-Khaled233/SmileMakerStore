@@ -117,6 +117,10 @@ export const api = {
     req<{ success: boolean }>("PUT", `/products/${id}/images/primary`, { image }, token),
   removeProductImage: (token: string, id: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/products/${id}/images/${idx}`, undefined, token),
+  setDynProductImagePrimary: (token: string, id: string, idx: number) =>
+    req<{ success: boolean }>("PATCH", `/products/${id}/images/${idx}/primary`, undefined, token),
+  replaceDynProductImage: (token: string, id: string, idx: number, image: string) =>
+    req<{ success: boolean }>("PUT", `/products/${id}/images/${idx}`, { image }, token),
 
   // Static product image overrides (manager)
   setStaticProductImages: (token: string, slug: string, images: string[]) =>
