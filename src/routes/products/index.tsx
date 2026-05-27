@@ -181,8 +181,12 @@ function ProductsPage() {
             })}
 
             {userBundles.map((b) => {
-              const allProds = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0] ?? "" }))];
-              const items = b.items.map((s) => allProds.find((p) => p.slug === s)).filter(Boolean) as { slug: string; title: string; image: string }[];
+              const allProds = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, price: p.salePrice ?? p.price, salePrice: undefined as number | undefined, image: imageOverrides[p.slug]?.[0] ?? p.images[0] ?? "" }))];
+              const items = b.items.map((s) => allProds.find((p) => p.slug === s)).filter(Boolean) as { slug: string; title: string; price: number; salePrice?: number; image: string }[];
+              const total = items.reduce((s, i) => s + (i.salePrice ?? i.price), 0);
+              const priceOv = pricing.bundles.find((x) => x.id === b.id);
+              const discounted = priceOv?.price ?? b.price;
+              const savingsPct = total > 0 && total > discounted ? Math.round(((total - discounted) / total) * 100) : 0;
               return (
                 <div key={b.id} className="lux-card p-7 flex flex-col">
                   <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
@@ -194,7 +198,7 @@ function ProductsPage() {
                     {items.map((i) => (
                       <div key={i.slug} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
                         {i.image ? (
-                          <img src={i.image} alt={i.title} loading="lazy" className="w-full h-full object-cover" />
+                          <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
                         ) : (
                           <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
                         )}
@@ -202,8 +206,16 @@ function ProductsPage() {
                     ))}
                   </div>
 
-                  <div className="mt-5">
-                    <p className="text-2xl price-tag text-gradient">{formatEGP(b.price, lang)}</p>
+                  <div className="mt-5 space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="line-through">{formatEGP(total, lang)}</span>
+                      {savingsPct > 0 && (
+                        <span className="ms-2 text-xs font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5">
+                          −{savingsPct}%
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
                   <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
