@@ -26,18 +26,6 @@ export function Footer() {
           <p className="mt-4 text-muted-foreground max-w-md text-sm leading-relaxed">
             {t("footer.tagline")}
           </p>
-          <form className="mt-6 flex max-w-sm gap-2" onSubmit={(e) => e.preventDefault()}>
-            <input
-              id="newsletter-email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder={t("footer.email")}
-              className="flex-1 rounded-full border border-border bg-white px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button className="btn-primary text-sm">{t("footer.join")}</button>
-          </form>
         </div>
         <div>
           <h4 className="text-sm font-semibold text-ink mb-4">{t("footer.explore")}</h4>
