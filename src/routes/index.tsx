@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap } from "lucide-react";
 import logo from "@/assets/smile-maker-logo.png";
 import hero from "@/assets/hero-smile.jpg";
 import { useT, type L } from "@/lib/i18n";
@@ -21,21 +21,20 @@ function ProductCarousel() {
   const [active, setActive] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dragStartX = useRef<number | null>(null);
+  const dragStartScroll = useRef(0);
 
-  // Build slides dynamically from all products + image overrides
   useEffect(() => {
     Promise.all([
       api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[] })),
       api.getDynamicProducts().catch(() => []),
     ]).then(([meta, dynProds]) => {
       const imgs: string[] = [];
-      // Static products (skip hidden, use override[0] if set)
       for (const p of PRODUCTS) {
         if (meta.hidden.includes(p.slug)) continue;
         const ov = (meta.imageOverrides as Record<string, string[]>)[p.slug];
         imgs.push(ov?.[0] ?? p.image);
       }
-      // Dynamic products (only those with at least one image)
       for (const p of dynProds) {
         if (p.outOfStock) continue;
         if (p.images[0]) imgs.push(p.images[0]);
@@ -60,7 +59,7 @@ function ProductCarousel() {
         trackRef.current?.scrollTo({ left: next * (trackRef.current.offsetWidth), behavior: "smooth" });
         return next;
       });
-    }, 2000);
+    }, 3000);
   }, [n]);
 
   useEffect(() => {
@@ -75,44 +74,55 @@ function ProductCarousel() {
     if (i >= 0 && i < n) setActive(i);
   };
 
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    dragStartX.current = e.clientX;
+    dragStartScroll.current = trackRef.current?.scrollLeft ?? 0;
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (dragStartX.current === null || !trackRef.current) return;
+    e.preventDefault();
+    trackRef.current.scrollLeft = dragStartScroll.current - (e.clientX - dragStartX.current);
+  };
+  const onMouseUp = () => {
+    if (dragStartX.current === null) return;
+    dragStartX.current = null;
+    // snap to nearest slide then restart timer
+    const track = trackRef.current;
+    if (track) {
+      const i = Math.round(track.scrollLeft / track.offsetWidth);
+      scrollTo(Math.max(0, Math.min(n - 1, i)));
+    }
+    startTimer();
+  };
+
   return (
-    <div className="relative select-none">
+    <div className="relative select-none" style={{ cursor: dragStartX.current !== null ? "grabbing" : "grab" }}>
       {/* Track */}
       <div
         ref={trackRef}
         onScroll={onScroll}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
         onTouchStart={() => { if (timerRef.current) clearInterval(timerRef.current); }}
         onTouchEnd={startTimer}
-        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide rounded-2xl sm:rounded-3xl shadow-xl"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="flex overflow-x-auto snap-x snap-mandatory rounded-2xl sm:rounded-3xl shadow-xl"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
       >
         {slides.map((src, i) => (
           <div key={i} className="shrink-0 w-full snap-center aspect-square sm:aspect-[4/3]">
             <img
               src={src}
               alt=""
+              draggable={false}
               loading={i === 0 ? "eager" : "lazy"}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover pointer-events-none"
             />
           </div>
         ))}
       </div>
-
-      {/* Prev / Next buttons */}
-      <button
-        onClick={() => { scrollTo(active - 1); startTimer(); }}
-        className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur shadow hover:bg-white transition-colors"
-        aria-label="السابق"
-      >
-        <ChevronLeft className="h-5 w-5 text-ink" />
-      </button>
-      <button
-        onClick={() => { scrollTo(active + 1); startTimer(); }}
-        className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur shadow hover:bg-white transition-colors"
-        aria-label="التالي"
-      >
-        <ChevronRight className="h-5 w-5 text-ink" />
-      </button>
 
       {/* Dots */}
       <div className="flex justify-center gap-1.5 mt-4">
