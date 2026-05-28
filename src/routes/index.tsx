@@ -138,28 +138,90 @@ function ReviewsSlider() {
   const { lang } = useT();
   const [images, setImages] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
+  // index into the extended array — starts at 1 (first real image)
+  const [idx, setIdx] = useState(1);
+  const [animated, setAnimated] = useState(true);
+  const dragStartX = useRef<number | null>(null);
+  const dragDelta = useRef(0);
+  const isDragging = useRef(false);
 
   useEffect(() => {
     api.getReviewImages().then((imgs) => { setImages(imgs); setLoaded(true); }).catch(() => setLoaded(true));
   }, []);
 
+  if (!loaded || images.length === 0) return null;
+
+  const n = images.length;
+  // extended = [last, ...images, first]  — enables seamless wrap
+  const extended = [images[n - 1], ...images, images[0]];
+  const total = extended.length; // n + 2
+
+  const goTo = (newIdx: number, withAnim = true) => {
+    setAnimated(withAnim);
+    setIdx(newIdx);
+  };
+
+  // After CSS transition ends, silently snap from clone to real item
+  const onTransitionEnd = () => {
+    if (idx === 0) {
+      setAnimated(false);
+      setIdx(n);
+    } else if (idx === n + 1) {
+      setAnimated(false);
+      setIdx(1);
+    }
+  };
+
+  // Re-enable animation one frame after a silent snap
+  useEffect(() => {
+    if (!animated) {
+      const id = requestAnimationFrame(() => setAnimated(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [animated]);
+
+  // Real dot index (0-based)
+  const dotIdx = idx === 0 ? n - 1 : idx === n + 1 ? 0 : idx - 1;
+
+  // Mouse drag
   const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true;
-    startX.current = e.clientX;
-    scrollLeft.current = trackRef.current?.scrollLeft ?? 0;
+    dragStartX.current = e.clientX;
+    dragDelta.current = 0;
+    isDragging.current = false;
   };
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging.current || !trackRef.current) return;
-    e.preventDefault();
-    trackRef.current.scrollLeft = scrollLeft.current - (e.clientX - startX.current);
+    if (dragStartX.current === null) return;
+    dragDelta.current = e.clientX - dragStartX.current;
+    if (Math.abs(dragDelta.current) > 5) isDragging.current = true;
   };
-  const stopDrag = () => { dragging.current = false; };
+  const onMouseUp = () => {
+    if (dragStartX.current === null) return;
+    const d = dragDelta.current;
+    dragStartX.current = null;
+    if (d < -50) goTo(idx + 1);
+    else if (d > 50) goTo(idx - 1);
+    isDragging.current = false;
+  };
 
-  if (!loaded || images.length === 0) return null;
+  // Touch drag
+  const onTouchStart = (e: React.TouchEvent) => {
+    dragStartX.current = e.touches[0].clientX;
+    dragDelta.current = 0;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (dragStartX.current === null) return;
+    dragDelta.current = e.touches[0].clientX - dragStartX.current;
+  };
+  const onTouchEnd = () => {
+    if (dragStartX.current === null) return;
+    const d = dragDelta.current;
+    dragStartX.current = null;
+    if (d < -50) goTo(idx + 1);
+    else if (d > 50) goTo(idx - 1);
+  };
+
+  // translateX: each slide is (100/total)% of the track
+  const offset = -(idx * (100 / total));
 
   return (
     <section className="section-pad bg-soft">
@@ -171,23 +233,55 @@ function ReviewsSlider() {
           </h2>
         </div>
       </div>
+
+      {/* Viewport */}
       <div
-        ref={trackRef}
-        className="flex gap-5 overflow-x-auto select-none px-6 sm:px-10 pb-2"
-        style={{ cursor: dragging.current ? "grabbing" : "grab", scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        className="overflow-hidden select-none px-4 sm:px-0"
+        style={{ cursor: isDragging.current ? "grabbing" : "grab" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
-        onMouseUp={stopDrag}
-        onMouseLeave={stopDrag}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
       >
-        {images.map((src, i) => (
-          <div key={i} className="shrink-0 rounded-2xl overflow-hidden border border-border shadow-sm"
-            style={{ width: "clamp(260px, 30vw, 400px)", aspectRatio: "1 / 1" }}>
-            <img src={src} alt="" loading="lazy" draggable={false}
-              className="w-full h-full object-cover pointer-events-none" />
-          </div>
-        ))}
+        <div
+          className="flex"
+          style={{
+            width: `${total * 100}%`,
+            transform: `translateX(${offset}%)`,
+            transition: animated ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "none",
+          }}
+          onTransitionEnd={onTransitionEnd}
+        >
+          {extended.map((src, i) => (
+            <div
+              key={i}
+              className="px-3 sm:px-6"
+              style={{ width: `${100 / total}%` }}
+            >
+              <div className="rounded-2xl overflow-hidden border border-border shadow-sm mx-auto max-w-2xl" style={{ aspectRatio: "1 / 1" }}>
+                <img src={src} alt="" loading="lazy" draggable={false}
+                  className="w-full h-full object-cover pointer-events-none" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Dot indicators */}
+      {n > 1 && (
+        <div className="flex justify-center gap-2 mt-6">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i + 1)}
+              className={`h-2 rounded-full transition-all duration-300 ${dotIdx === i ? "w-6 bg-deep-blue" : "w-2 bg-border hover:bg-muted-foreground"}`}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
