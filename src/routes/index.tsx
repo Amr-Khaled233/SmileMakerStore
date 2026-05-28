@@ -149,6 +149,14 @@ function ReviewsSlider() {
     api.getReviewImages().then((imgs) => { setImages(imgs); setLoaded(true); }).catch(() => setLoaded(true));
   }, []);
 
+  // Re-enable animation one frame after a silent snap — must be before any early return
+  useEffect(() => {
+    if (!animated) {
+      const id = requestAnimationFrame(() => setAnimated(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [animated]);
+
   if (!loaded || images.length === 0) return null;
 
   const n = images.length;
@@ -171,14 +179,6 @@ function ReviewsSlider() {
       setIdx(1);
     }
   };
-
-  // Re-enable animation one frame after a silent snap
-  useEffect(() => {
-    if (!animated) {
-      const id = requestAnimationFrame(() => setAnimated(true));
-      return () => cancelAnimationFrame(id);
-    }
-  }, [animated]);
 
   // Real dot index (0-based)
   const dotIdx = idx === 0 ? n - 1 : idx === n + 1 ? 0 : idx - 1;
