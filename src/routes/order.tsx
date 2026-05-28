@@ -291,6 +291,23 @@ function OrderPage() {
     [inventoryStatus, colorConsumedBefore],
   );
 
+  // True when the user's cart already holds all available units of this color
+  const isColorMaxed = useCallback(
+    (slug: string, colorId: string): boolean => {
+      const available = inventoryStatus.colorQty?.[slug]?.[colorId];
+      if (available === undefined) return false;
+      let consumed = (standaloneColorQty[slug as ProductSlug]?.[colorId] ?? 0) + (dynColorQty[slug]?.[colorId] ?? 0);
+      for (const mb of matchedBundles) {
+        const bQty = bundleQty[mb.id] ?? 1;
+        for (let j = 0; j < bQty; j++) {
+          if (bundleColorSelections[mb.id]?.[j]?.[slug] === colorId) consumed++;
+        }
+      }
+      return consumed >= available;
+    },
+    [inventoryStatus, standaloneColorQty, dynColorQty, matchedBundles, bundleQty, bundleColorSelections],
+  );
+
   const bundleDiscount = useMemo(() => {
     return matchedBundles.reduce((sum, b) => {
       const bQty = bundleQty[b.id] ?? 1;
@@ -766,7 +783,7 @@ function OrderPage() {
                                     <Minus className="h-3.5 w-3.5" />
                                   </button>
                                   <span className="w-7 text-center text-sm font-medium">{cq}</span>
-                                  <button type="button" onClick={() => incColor(p.slug, c.id)} disabled={colorOos} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                  <button type="button" onClick={() => incColor(p.slug, c.id)} disabled={colorOos || isColorMaxed(p.slug, c.id)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                                     <Plus className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -856,7 +873,7 @@ function OrderPage() {
                                     <Minus className="h-3.5 w-3.5" />
                                   </button>
                                   <span className="w-7 text-center text-sm font-medium">{cq}</span>
-                                  <button type="button" onClick={() => incDynColor(p.slug, c.id)} disabled={colorOos} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                  <button type="button" onClick={() => incDynColor(p.slug, c.id)} disabled={colorOos || isColorMaxed(p.slug, c.id)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                                     <Plus className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
