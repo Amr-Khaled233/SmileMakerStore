@@ -141,7 +141,7 @@ function ProductCarousel() {
           {extended.map((src, i) => (
             <div key={i} className="aspect-square sm:aspect-[4/3]" style={{ width: `${100 / total}%` }}>
               <img src={src} alt="" draggable={false}
-                loading={i === 1 ? "eager" : "lazy"}
+                loading="eager"
                 className="w-full h-full object-cover pointer-events-none" />
             </div>
           ))}
