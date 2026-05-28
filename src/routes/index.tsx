@@ -18,11 +18,11 @@ const FALLBACK_SLIDES = [slide1, slide2, slide3, slide4, slide5];
 
 function ProductCarousel() {
   const [slides, setSlides] = useState<string[]>(FALLBACK_SLIDES);
-  const [active, setActive] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState(1);
+  const [animated, setAnimated] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dragStartX = useRef<number | null>(null);
-  const dragStartScroll = useRef(0);
+  const dragDelta = useRef(0);
 
   useEffect(() => {
     Promise.all([
@@ -39,89 +39,113 @@ function ProductCarousel() {
         if (p.outOfStock) continue;
         if (p.images[0]) imgs.push(p.images[0]);
       }
-      if (imgs.length > 0) setSlides(imgs);
+      if (imgs.length > 0) { setSlides(imgs); setIdx(1); }
     });
   }, []);
 
-  const n = slides.length;
+  // Re-enable animation one frame after a silent snap — must be before any early return
+  useEffect(() => {
+    if (!animated) {
+      const id = requestAnimationFrame(() => setAnimated(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [animated]);
 
-  const scrollTo = useCallback((idx: number) => {
-    const i = ((idx % n) + n) % n;
-    setActive(i);
-    trackRef.current?.scrollTo({ left: i * (trackRef.current.offsetWidth), behavior: "smooth" });
-  }, [n]);
+  const n = slides.length;
+  const extended = [slides[n - 1], ...slides, slides[0]];
+  const total = extended.length;
+
+  const goTo = useCallback((newIdx: number) => {
+    setAnimated(true);
+    setIdx(newIdx);
+  }, []);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setActive((a) => {
-        const next = (a + 1) % n;
-        trackRef.current?.scrollTo({ left: next * (trackRef.current.offsetWidth), behavior: "smooth" });
-        return next;
-      });
+      setAnimated(true);
+      setIdx((i) => i + 1);
     }, 3000);
-  }, [n]);
+  }, []);
 
   useEffect(() => {
     startTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [startTimer]);
 
-  const onScroll = () => {
-    const track = trackRef.current;
-    if (!track) return;
-    const i = Math.round(track.scrollLeft / track.offsetWidth);
-    if (i >= 0 && i < n) setActive(i);
+  const onTransitionEnd = () => {
+    if (idx === 0) { setAnimated(false); setIdx(n); }
+    else if (idx === n + 1) { setAnimated(false); setIdx(1); }
   };
+
+  const dotIdx = idx === 0 ? n - 1 : idx === n + 1 ? 0 : idx - 1;
+  const offset = -(idx * (100 / total));
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (timerRef.current) clearInterval(timerRef.current);
     dragStartX.current = e.clientX;
-    dragStartScroll.current = trackRef.current?.scrollLeft ?? 0;
+    dragDelta.current = 0;
   };
   const onMouseMove = (e: React.MouseEvent) => {
-    if (dragStartX.current === null || !trackRef.current) return;
-    e.preventDefault();
-    trackRef.current.scrollLeft = dragStartScroll.current - (e.clientX - dragStartX.current);
+    if (dragStartX.current === null) return;
+    dragDelta.current = e.clientX - dragStartX.current;
   };
   const onMouseUp = () => {
     if (dragStartX.current === null) return;
+    const d = dragDelta.current;
     dragStartX.current = null;
-    // snap to nearest slide then restart timer
-    const track = trackRef.current;
-    if (track) {
-      const i = Math.round(track.scrollLeft / track.offsetWidth);
-      scrollTo(Math.max(0, Math.min(n - 1, i)));
-    }
+    if (d < -50) goTo(idx + 1);
+    else if (d > 50) goTo(idx - 1);
+    startTimer();
+  };
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    dragStartX.current = e.touches[0].clientX;
+    dragDelta.current = 0;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (dragStartX.current === null) return;
+    dragDelta.current = e.touches[0].clientX - dragStartX.current;
+  };
+  const onTouchEnd = () => {
+    if (dragStartX.current === null) return;
+    const d = dragDelta.current;
+    dragStartX.current = null;
+    if (d < -50) goTo(idx + 1);
+    else if (d > 50) goTo(idx - 1);
     startTimer();
   };
 
   return (
-    <div className="relative select-none" style={{ cursor: dragStartX.current !== null ? "grabbing" : "grab" }}>
-      {/* Track */}
+    <div className="select-none">
       <div
-        ref={trackRef}
-        onScroll={onScroll}
+        className="overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl"
+        style={{ cursor: "grab" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
-        onTouchStart={() => { if (timerRef.current) clearInterval(timerRef.current); }}
-        onTouchEnd={startTimer}
-        className="flex overflow-x-auto snap-x snap-mandatory rounded-2xl sm:rounded-3xl shadow-xl"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
       >
-        {slides.map((src, i) => (
-          <div key={i} className="shrink-0 w-full snap-center aspect-square sm:aspect-[4/3]">
-            <img
-              src={src}
-              alt=""
-              draggable={false}
-              loading={i === 0 ? "eager" : "lazy"}
-              className="w-full h-full object-cover pointer-events-none"
-            />
-          </div>
-        ))}
+        <div
+          className="flex"
+          style={{
+            width: `${total * 100}%`,
+            transform: `translateX(${offset}%)`,
+            transition: animated ? "transform 0.45s cubic-bezier(0.4,0,0.2,1)" : "none",
+          }}
+          onTransitionEnd={onTransitionEnd}
+        >
+          {extended.map((src, i) => (
+            <div key={i} className="aspect-square sm:aspect-[4/3]" style={{ width: `${100 / total}%` }}>
+              <img src={src} alt="" draggable={false}
+                loading={i === 1 ? "eager" : "lazy"}
+                className="w-full h-full object-cover pointer-events-none" />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Dots */}
@@ -129,8 +153,8 @@ function ProductCarousel() {
         {slides.map((_, i) => (
           <button
             key={i}
-            onClick={() => { scrollTo(i); startTimer(); }}
-            className={`h-1.5 rounded-full transition-all duration-300 ${i === active ? "w-6 bg-deep-blue" : "w-1.5 bg-border"}`}
+            onClick={() => { goTo(i + 1); startTimer(); }}
+            className={`h-1.5 rounded-full transition-all duration-300 ${dotIdx === i ? "w-6 bg-deep-blue" : "w-1.5 bg-border"}`}
             aria-label={`الصورة ${i + 1}`}
           />
         ))}
