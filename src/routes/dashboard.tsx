@@ -626,7 +626,6 @@ function InventorySection({ token }: { token: string }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-ink" dir="ltr">{p.title}</p>
-                  <span className="text-[10px] bg-deep-blue/10 text-deep-blue rounded-full px-2 py-0.5">مضاف</span>
                   {isOos && (
                     <span className="text-[10px] font-medium text-destructive bg-destructive/10 rounded-full px-2 py-0.5">
                       نفد المخزون
@@ -948,15 +947,6 @@ function PricingSection({ token }: { token: string }) {
               </div>
             );
           })}
-        </div>
-      </section>
-
-      {/* Dynamic Product Prices */}
-      {dynProds.length > 0 && (
-      <section>
-        <h3 className="font-display text-xl mb-1">أسعار المنتجات المضافة</h3>
-        <p className="text-xs text-muted-foreground mb-4">اتركه فاضي أو اكتب 0 في سعر التخفيض لو ما فيش عرض.</p>
-        <div className="space-y-4">
           {dynProds.map((p) => {
             const draft = dynProductDrafts[p.slug] ?? { price: String(p.price), salePrice: "" };
             const savingKey = `dyn_${p.slug}`;
@@ -1013,7 +1003,6 @@ function PricingSection({ token }: { token: string }) {
           })}
         </div>
       </section>
-      )}
 
       {/* Bundle Prices — all bundles unified */}
       <section>
@@ -2482,12 +2471,8 @@ function ProductsSection({ token }: { token: string }) {
             })}
           </div>
 
-          {/* ── Dynamic products — unified with static ── */}
           {products.length > 0 && (
-            <div className="space-y-6 mt-6">
-              <div className="border-t border-border pt-6">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-4">منتجات مضافة</p>
-              </div>
+            <div className="space-y-6 mt-6 border-t border-border pt-6">
               {products.map((p) => {
                 const isHidden = hiddenSlugs.includes(p.slug);
                 const priceOv = pricingOverrides[p.slug];
@@ -2785,7 +2770,7 @@ function ProductsSection({ token }: { token: string }) {
         {/* User-created bundles */}
         {userBundles.length > 0 && (
         <section>
-          <h3 className="font-display text-xl mb-4">الباقات المضافة ({userBundles.length})</h3>
+          <h3 className="font-display text-xl mb-4">الباقات ({userBundles.length})</h3>
           <div className="space-y-4">
             {userBundles.map((b) => {
               const isEditing = editingUserBundleId === b.id;

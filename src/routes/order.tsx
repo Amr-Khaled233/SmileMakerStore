@@ -784,82 +784,97 @@ function OrderPage() {
                     </div>
                   );
                 })}
-              </div>
 
-              {/* ── Dynamic products ── */}
-              {dynamicProducts.filter((p) => !p.outOfStock).length > 0 && (
-                <div className="mt-4 pt-4 border-t border-border/60 divide-y divide-border">
-                  {dynamicProducts.map((p) => {
-                    if (p.outOfStock) return null;
-                    const hasColors = (p.colors?.length ?? 0) > 0;
-                    const unitPrice = p.salePrice ?? p.price;
-                    const onSale = p.salePrice != null;
-                    const dynBundleContribs = matchedBundles.filter((b) => b.items.includes(p.slug));
-                    const standaloneQ = hasColors ? dynColorTotal(p.slug) : (dynQty[p.slug] ?? 0);
-                    const totalQ = dynBundleContribs.length + standaloneQ;
-                    return (
-                      <div key={p.id} className="py-4">
-                        <div className="flex items-start gap-3">
-                          <div className="h-16 w-16 rounded-xl bg-soft border border-border flex items-center justify-center overflow-hidden shrink-0">
-                            {p.images[0] ? (
-                              <img src={p.images[0]} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
-                            ) : (
-                              <ShoppingBag className="h-6 w-6 text-muted-foreground/40" />
-                            )}
+                {dynamicProducts.map((p) => {
+                  const oos = p.outOfStock === true;
+                  const hasColors = (p.colors?.length ?? 0) > 0;
+                  const unitPrice = p.salePrice ?? p.price;
+                  const onSale = p.salePrice != null;
+                  const dynBundleContribs = matchedBundles.filter((b) => b.items.includes(p.slug));
+                  const standaloneQ = hasColors ? dynColorTotal(p.slug) : (dynQty[p.slug] ?? 0);
+                  const totalQ = dynBundleContribs.length + standaloneQ;
+                  return (
+                    <div key={p.id} className={`py-4 transition-opacity ${oos ? "opacity-55" : ""}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="h-16 w-16 rounded-xl bg-soft border border-border flex items-center justify-center overflow-hidden shrink-0">
+                          {p.images[0] ? (
+                            <img src={p.images[0]} alt={p.title} loading="lazy" className={`w-full h-full object-cover ${oos ? "grayscale" : ""}`} />
+                          ) : (
+                            <ShoppingBag className="h-6 w-6 text-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`font-medium text-ink leading-snug ${oos ? "line-through decoration-muted-foreground/50" : ""}`}>{lang === "ar" ? p.titleAr : p.title}</p>
+                            {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                            {totalQ > 0 && !oos && <span className="text-[10px] font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? `× ${totalQ} في الكارت` : `× ${totalQ} in cart`}</span>}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-ink leading-snug">{lang === "ar" ? p.titleAr : p.title}</p>
-                              {totalQ > 0 && <span className="text-[10px] font-medium text-deep-blue bg-deep-blue/10 rounded-full px-2 py-0.5 shrink-0">{lang === "ar" ? `× ${totalQ} في الكارت` : `× ${totalQ} in cart`}</span>}
-                            </div>
-                            {p.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{lang === "ar" ? (p.descriptionAr || p.description) : p.description}</p>}
-                            <div className="mt-1 flex items-center gap-2 flex-wrap">
-                              <span className="text-sm price-tag text-gradient">{formatEGP(unitPrice, lang)}</span>
-                              {onSale && <span className="text-[11px] text-muted-foreground line-through font-sans">{formatEGP(p.price, lang)}</span>}
-                            </div>
+                          {p.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{lang === "ar" ? (p.descriptionAr || p.description) : p.description}</p>}
+                          <div className="mt-1 flex items-center gap-2 flex-wrap">
+                            <span className="text-sm price-tag text-gradient">{formatEGP(unitPrice, lang)}</span>
+                            {onSale && <span className="text-[11px] text-muted-foreground line-through font-sans">{formatEGP(p.price, lang)}</span>}
                           </div>
-                          {!hasColors && (
-                            <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-1 shrink-0">
-                              <button type="button" onClick={() => decDyn(p.slug)} disabled={standaloneQ === 0} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
-                                <Minus className="h-4 w-4" />
-                              </button>
-                              <span className="w-10 text-center text-sm font-medium">{standaloneQ}</span>
-                              <button type="button" onClick={() => incDyn(p.slug)} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
-                                <Plus className="h-4 w-4" />
-                              </button>
+                          {dynBundleContribs.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {dynBundleContribs.map((b) => (
+                                <span key={b.id} className="inline-flex items-center gap-1 text-[10px] font-medium text-deep-blue bg-deep-blue/8 border border-deep-blue/20 rounded-full px-2 py-0.5">
+                                  <Sparkles className="h-2.5 w-2.5" />{tl(b.title)}
+                                </span>
+                              ))}
                             </div>
                           )}
                         </div>
-                        {hasColors && (
-                          <div className="mt-3 ms-[76px] space-y-2">
-                            <p className="text-xs text-muted-foreground">{lang === "ar" ? "اختر اللون والكمية:" : "Choose color & qty:"}</p>
-                            {p.colors!.map((c) => {
-                              const cq = dynColorQty[p.slug]?.[c.id] ?? 0;
-                              return (
-                                <div key={c.id} className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="h-4 w-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }} />
-                                    <span className="text-xs text-ink">{tl(c.label)}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5 shrink-0">
-                                    <button type="button" onClick={() => decDynColor(p.slug, c.id)} disabled={cq === 0} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
-                                      <Minus className="h-3.5 w-3.5" />
-                                    </button>
-                                    <span className="w-7 text-center text-sm font-medium">{cq}</span>
-                                    <button type="button" onClick={() => incDynColor(p.slug, c.id)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
-                                      <Plus className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                        {!hasColors && !oos && (
+                          <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-1 shrink-0">
+                            <button type="button" onClick={() => decDyn(p.slug)} disabled={standaloneQ === 0} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-10 text-center text-sm font-medium">{standaloneQ}</span>
+                            <button type="button" onClick={() => incDyn(p.slug)} className="h-9 w-9 rounded-full hover:bg-soft flex items-center justify-center transition-colors">
+                              <Plus className="h-4 w-4" />
+                            </button>
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      {hasColors && !oos && (
+                        <div className="mt-3 ms-[76px] space-y-2">
+                          <p className="text-xs text-muted-foreground">{lang === "ar" ? "اختر اللون والكمية:" : "Choose color & qty:"}</p>
+                          {p.colors!.map((c) => {
+                            const colorOos = inventoryStatus.colorQty?.[p.slug]?.[c.id] === 0;
+                            const cq = dynColorQty[p.slug]?.[c.id] ?? 0;
+                            return (
+                              <div key={c.id} className={`flex items-center justify-between gap-3 ${colorOos ? "opacity-45" : ""}`}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="relative h-4 w-4 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: c.hex }}>
+                                    {colorOos && <span className="absolute inset-0 flex items-center justify-center"><span className="absolute w-[130%] h-px bg-muted-foreground/60 rotate-45 origin-center" /></span>}
+                                  </span>
+                                  <span className={`text-xs ${colorOos ? "text-muted-foreground line-through" : "text-ink"}`}>{tl(c.label)}</span>
+                                  {colorOos && <span className="text-[10px] text-muted-foreground">({lang === "ar" ? "نفد" : "OOS"})</span>}
+                                </div>
+                                <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5 shrink-0">
+                                  <button type="button" onClick={() => decDynColor(p.slug, c.id)} disabled={cq === 0 || colorOos} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 transition-colors">
+                                    <Minus className="h-3.5 w-3.5" />
+                                  </button>
+                                  <span className="w-7 text-center text-sm font-medium">{cq}</span>
+                                  <button type="button" onClick={() => incDynColor(p.slug, c.id)} disabled={colorOos} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <Plus className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {totalQ > 0 && (
+                            <p className="text-xs text-muted-foreground pt-1">
+                              {lang === "ar" ? `الإجمالي: ${totalQ} قطعة` : `Total: ${totalQ} item${totalQ !== 1 ? "s" : ""}`}
+                              {" · "}{formatEGP(unitPrice * totalQ, lang)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
               {matchedBundles.length > 0 && (
                 <div className="mt-4 rounded-xl bg-soft border border-border p-4 flex items-start gap-3">
