@@ -138,19 +138,31 @@ function ReviewsSlider() {
   const { lang } = useT();
   const [images, setImages] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
 
   useEffect(() => {
     api.getReviewImages().then((imgs) => { setImages(imgs); setLoaded(true); }).catch(() => setLoaded(true));
   }, []);
 
+  const onMouseDown = (e: React.MouseEvent) => {
+    dragging.current = true;
+    startX.current = e.clientX;
+    scrollLeft.current = trackRef.current?.scrollLeft ?? 0;
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging.current || !trackRef.current) return;
+    e.preventDefault();
+    trackRef.current.scrollLeft = scrollLeft.current - (e.clientX - startX.current);
+  };
+  const stopDrag = () => { dragging.current = false; };
+
   if (!loaded || images.length === 0) return null;
 
-  // Duplicate enough times to fill the strip seamlessly
-  const copies = images.length < 4 ? 4 : 2;
-  const strip = Array.from({ length: copies }, () => images).flat();
-
   return (
-    <section className="section-pad bg-soft overflow-hidden">
+    <section className="section-pad bg-soft">
       <div className="container-lux">
         <div className="text-center max-w-xl mx-auto mb-10">
           <p className="eyebrow">{lang === "ar" ? "آراء العملاء" : "Customer Reviews"}</p>
@@ -159,18 +171,22 @@ function ReviewsSlider() {
           </h2>
         </div>
       </div>
-      {/* Full-width scrolling strip — no container constraint */}
-      <div className="overflow-hidden">
-        <div
-          className="animate-marquee flex gap-5"
-          style={{ width: `${strip.length * (288 + 20)}px` }}
-        >
-          {strip.map((src, i) => (
-            <div key={i} className="shrink-0 w-72 h-72 rounded-2xl overflow-hidden border border-border shadow-sm">
-              <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
-            </div>
-          ))}
-        </div>
+      <div
+        ref={trackRef}
+        className="flex gap-5 overflow-x-auto select-none px-6 sm:px-10 pb-2"
+        style={{ cursor: dragging.current ? "grabbing" : "grab", scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={stopDrag}
+        onMouseLeave={stopDrag}
+      >
+        {images.map((src, i) => (
+          <div key={i} className="shrink-0 rounded-2xl overflow-hidden border border-border shadow-sm"
+            style={{ width: "clamp(260px, 30vw, 400px)", aspectRatio: "1 / 1" }}>
+            <img src={src} alt="" loading="lazy" draggable={false}
+              className="w-full h-full object-cover pointer-events-none" />
+          </div>
+        ))}
       </div>
     </section>
   );
