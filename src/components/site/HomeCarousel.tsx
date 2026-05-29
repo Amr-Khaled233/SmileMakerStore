@@ -3,11 +3,30 @@ import { useState, useEffect, useRef, useCallback } from "react";
 type Props = { images: string[] };
 
 export function HomeCarousel({ images }: Props) {
+  const [allLoaded, setAllLoaded] = useState(false);
   const [idx, setIdx] = useState(1);
   const [animated, setAnimated] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dragStartX = useRef<number | null>(null);
   const dragDelta = useRef(0);
+
+  // Preload every image before showing the carousel so no white flash mid-swipe
+  useEffect(() => {
+    if (images.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      images.map(
+        (src) =>
+          new Promise<void>((resolve) => {
+            const img = new window.Image();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            img.src = src;
+          }),
+      ),
+    ).then(() => { if (!cancelled) setAllLoaded(true); });
+    return () => { cancelled = true; };
+  }, [images]);
 
   useEffect(() => {
     if (!animated) {
@@ -30,12 +49,12 @@ export function HomeCarousel({ images }: Props) {
   }, []);
 
   useEffect(() => {
-    if (images.length === 0) return;
+    if (!allLoaded) return;
     startTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [images.length, startTimer]);
+  }, [allLoaded, startTimer]);
 
-  if (images.length === 0) return null;
+  if (images.length === 0 || !allLoaded) return null;
 
   const n = images.length;
   const extended = [images[n - 1], ...images, images[0]];
