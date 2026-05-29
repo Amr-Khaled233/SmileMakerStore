@@ -487,7 +487,7 @@ function OrderPage() {
                       <span className="text-ink min-w-0 truncate">
                         <span dir="ltr">{it.title}</span> <span className="text-muted-foreground">× {it.qty}</span>
                       </span>
-                      <span className="font-medium text-ink whitespace-nowrap">{formatEGP(it.lineTotal, lang)}</span>
+                      <span className="price-tag text-sm text-ink whitespace-nowrap">{formatEGP(it.lineTotal, lang)}</span>
                     </div>
                   ))}
                 </div>
@@ -507,7 +507,7 @@ function OrderPage() {
                   <Row label={`${t("order.shipping")} — ${confirmed.shippingZone}`} value={formatEGP(confirmed.shippingFee, lang)} />
                   <div className="border-t border-border pt-3 mt-3 flex items-center justify-between">
                     <span className="font-display text-lg">{t("order.total")}</span>
-                    <span className="font-display text-2xl text-gradient">{formatEGP(confirmed.total, lang)}</span>
+                    <span className="price-tag text-3xl text-gradient">{formatEGP(confirmed.total, lang)}</span>
                   </div>
                 </div>
               </div>

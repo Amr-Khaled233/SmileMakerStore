@@ -116,7 +116,7 @@ export function ReviewsSlider() {
                 <img
                   src={src}
                   alt=""
-                  loading="lazy"
+                  loading="eager"
                   draggable={false}
                   className="w-full h-full object-cover pointer-events-none"
                 />

@@ -286,8 +286,14 @@ export function PricingSection({ token }: { token: string }) {
           {/* Static/original bundles */}
           {BUNDLES.map((b) => {
             const itemsSum = b.items.reduce((s, slug) => {
-              const p = PRODUCTS.find((x) => x.slug === slug)!;
-              return s + effectivePrice(p);
+              const draft = productDrafts[slug];
+              if (draft) {
+                const price = Number(draft.price);
+                const sp = draft.salePrice.trim() ? Number(draft.salePrice) : null;
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+              }
+              const p = PRODUCTS.find((x) => x.slug === slug);
+              return s + (p ? effectivePrice(p) : 0);
             }, 0);
             const defaultPrice = Math.round(itemsSum * (1 - b.discountPct / 100));
             const inputVal = bundleDrafts[b.id];
@@ -323,10 +329,18 @@ export function PricingSection({ token }: { token: string }) {
           {/* User-created bundles — same style */}
           {userBundles.map((b) => {
             const itemsSum = b.items.reduce((s, slug) => {
-              const sp = PRODUCTS.find((x) => x.slug === slug);
-              if (sp) return s + effectivePrice(sp);
-              const dp = dynProds.find((x) => x.slug === slug);
-              if (dp) return s + (dp.salePrice ?? dp.price);
+              const pd = productDrafts[slug];
+              if (pd) {
+                const price = Number(pd.price);
+                const sp = pd.salePrice.trim() ? Number(pd.salePrice) : null;
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+              }
+              const dd = dynProductDrafts[slug];
+              if (dd) {
+                const price = Number(dd.price);
+                const sp = dd.salePrice.trim() ? Number(dd.salePrice) : null;
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+              }
               return s;
             }, 0);
             const inputVal = userBundleDrafts[b.id] ?? "";
