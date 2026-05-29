@@ -1,18 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "@/lib/api";
-import { PRODUCTS } from "@/data/products";
 
-import slide1 from "@/assets/h2o-flosser-1.jpeg";
-import slide2 from "@/assets/electric-brush-1.jpeg";
-import slide3 from "@/assets/ortho-kit-1.jpeg";
-import slide4 from "@/assets/l-shaped-1.jpeg";
-import slide5 from "@/assets/ortho-wax-main.jpeg";
+type Props = { images: string[] };
 
-const FALLBACK_SLIDES = [slide1, slide2, slide3, slide4, slide5];
-
-export function HomeCarousel() {
-  const [slides, setSlides] = useState<string[]>([]);
-  const [loaded, setLoaded] = useState(false);
+export function HomeCarousel({ images }: Props) {
   const [idx, setIdx] = useState(1);
   const [animated, setAnimated] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -20,36 +10,16 @@ export function HomeCarousel() {
   const dragDelta = useRef(0);
 
   useEffect(() => {
-    Promise.all([
-      api.getCarouselImages().catch((): string[] => []),
-      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
-      api.getDynamicProducts().catch(() => []),
-    ]).then(([carouselImgs, meta, dynProds]) => {
-      if (carouselImgs.length > 0) {
-        setSlides(carouselImgs);
-      } else {
-        const imgs: string[] = [];
-        for (const p of PRODUCTS) {
-          if (meta.hidden.includes(p.slug)) continue;
-          const ov = (meta.imageOverrides as Record<string, string[]>)[p.slug];
-          imgs.push(ov?.[0] ?? p.image);
-        }
-        for (const p of dynProds) {
-          if (p.outOfStock) continue;
-          if (p.images[0]) imgs.push(p.images[0]);
-        }
-        setSlides(imgs.length > 0 ? imgs : FALLBACK_SLIDES);
-      }
-      setLoaded(true);
-    });
-  }, []);
-
-  useEffect(() => {
     if (!animated) {
       const id = requestAnimationFrame(() => setAnimated(true));
       return () => cancelAnimationFrame(id);
     }
   }, [animated]);
+
+  const goTo = useCallback((newIdx: number) => {
+    setAnimated(true);
+    setIdx(newIdx);
+  }, []);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -59,21 +29,16 @@ export function HomeCarousel() {
     }, 4000);
   }, []);
 
-  const goTo = useCallback((newIdx: number) => {
-    setAnimated(true);
-    setIdx(newIdx);
-  }, []);
-
   useEffect(() => {
-    if (!loaded || slides.length === 0) return;
+    if (images.length === 0) return;
     startTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [loaded, slides.length, startTimer]);
+  }, [images.length, startTimer]);
 
-  if (!loaded || slides.length === 0) return null;
+  if (images.length === 0) return null;
 
-  const n = slides.length;
-  const extended = [slides[n - 1], ...slides, slides[0]];
+  const n = images.length;
+  const extended = [images[n - 1], ...images, images[0]];
   const total = extended.length;
 
   const onTransitionEnd = () => {
@@ -157,7 +122,7 @@ export function HomeCarousel() {
 
       {n > 1 && (
         <div className="flex justify-center gap-2 mt-5">
-          {slides.map((_, i) => (
+          {images.map((_, i) => (
             <button
               key={i}
               onClick={() => { goTo(i + 1); startTimer(); }}

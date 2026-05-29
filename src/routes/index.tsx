@@ -21,16 +21,19 @@ function HomePage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [carouselImages, setCarouselImages] = useState<string[]>([]);
 
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
     Promise.all([
       api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
       api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
-    ]).then(([pricingData, meta]) => {
+      api.getCarouselImages().catch((): string[] => []),
+    ]).then(([pricingData, meta, carImgs]) => {
       setPricing(pricingData);
       setImageOverrides(meta.imageOverrides ?? {});
       setHiddenSlugs(meta.hidden ?? []);
+      setCarouselImages(carImgs);
       setDataReady(true);
     });
   }, []);
@@ -74,9 +77,11 @@ function HomePage() {
             <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed hidden sm:block">
               {t("home.heroLead")}
             </p>
-            <div className="mt-6 sm:hidden">
-              <HomeCarousel />
-            </div>
+            {carouselImages.length > 0 && (
+              <div className="mt-6 sm:hidden">
+                <HomeCarousel images={carouselImages} />
+              </div>
+            )}
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/products" className="btn-primary">
                 {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
@@ -110,23 +115,25 @@ function HomePage() {
         <div className="arc-divider" />
       </section>
 
-      {/* ── Products Showcase — desktop ── */}
-      <section className="hidden sm:block py-14">
-        <div className="container-lux">
-          <div className="text-center mb-10">
-            <p className="eyebrow">{t("home.heroBadge")}</p>
-            <h2 className="mt-2 text-4xl sm:text-5xl font-display">
-              {tl({ en: "Our Products", ar: "منتجاتنا" })}
-            </h2>
+      {/* ── Products Showcase — desktop, only when dashboard images are loaded ── */}
+      {dataReady && carouselImages.length > 0 && (
+        <section className="hidden sm:block py-14">
+          <div className="container-lux">
+            <div className="text-center mb-10">
+              <p className="eyebrow">{t("home.heroBadge")}</p>
+              <h2 className="mt-2 text-4xl sm:text-5xl font-display">
+                {tl({ en: "Our Products", ar: "منتجاتنا" })}
+              </h2>
+            </div>
+            <HomeCarousel images={carouselImages} />
+            <div className="mt-8 text-center">
+              <Link to="/products" className="btn-primary">
+                {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+              </Link>
+            </div>
           </div>
-          <HomeCarousel />
-          <div className="mt-8 text-center">
-            <Link to="/products" className="btn-primary">
-              {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── About snippet ── */}
       <section className="section-pad">
