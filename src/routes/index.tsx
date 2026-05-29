@@ -120,9 +120,6 @@ function HomePage() {
             <h2 className="mt-2 text-4xl sm:text-5xl font-display">
               {tl({ en: "Our Products", ar: "منتجاتنا" })}
             </h2>
-            <p className="mt-3 text-muted-foreground text-sm max-w-md mx-auto">
-              {tl({ en: "Drag to explore — new images can be managed from the dashboard", ar: "اسحب للتصفح — يمكن تعديل الصور من لوحة التحكم" })}
-            </p>
           </div>
           <HomeCarousel />
           <div className="mt-8 text-center">

@@ -59,6 +59,11 @@ export function HomeCarousel() {
     }, 4000);
   }, []);
 
+  const goTo = useCallback((newIdx: number) => {
+    setAnimated(true);
+    setIdx(newIdx);
+  }, []);
+
   useEffect(() => {
     if (!loaded || slides.length === 0) return;
     startTimer();
@@ -70,11 +75,6 @@ export function HomeCarousel() {
   const n = slides.length;
   const extended = [slides[n - 1], ...slides, slides[0]];
   const total = extended.length;
-
-  const goTo = useCallback((newIdx: number) => {
-    setAnimated(true);
-    setIdx(newIdx);
-  }, []);
 
   const onTransitionEnd = () => {
     if (idx === 0) { setAnimated(false); setIdx(n); }
