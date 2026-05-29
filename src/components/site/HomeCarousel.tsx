@@ -142,13 +142,13 @@ export function HomeCarousel() {
           onTransitionEnd={onTransitionEnd}
         >
           {extended.map((src, i) => (
-            <div key={i} className="aspect-[16/7] sm:aspect-[21/9]" style={{ width: `${100 / total}%` }}>
+            <div key={i} className="aspect-[4/3] sm:aspect-[16/9] bg-white flex items-center justify-center" style={{ width: `${100 / total}%` }}>
               <img
                 src={src}
                 alt=""
                 draggable={false}
                 loading="eager"
-                className="w-full h-full object-cover pointer-events-none"
+                className="w-full h-full object-contain pointer-events-none"
               />
             </div>
           ))}
