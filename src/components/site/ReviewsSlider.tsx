@@ -13,7 +13,16 @@ export function ReviewsSlider() {
   const isDragging = useRef(false);
 
   useEffect(() => {
-    api.getReviewImages().then((imgs) => { setImages(imgs); setLoaded(true); }).catch(() => setLoaded(true));
+    api.getReviewImages().then(async (imgs) => {
+      if (imgs.length === 0) { setLoaded(true); return; }
+      await Promise.all(imgs.map((src) => {
+        const img = new window.Image();
+        img.src = src;
+        return img.decode().catch(() => {});
+      }));
+      setImages(imgs);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
   }, []);
 
   useEffect(() => {

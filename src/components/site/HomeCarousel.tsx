@@ -10,20 +10,17 @@ export function HomeCarousel({ images }: Props) {
   const dragStartX = useRef<number | null>(null);
   const dragDelta = useRef(0);
 
-  // Preload every image before showing the carousel so no white flash mid-swipe
+  // Preload + fully decode every image before showing so no white flash mid-swipe.
+  // img.decode() waits for both download AND decode — onload only waits for download.
   useEffect(() => {
     if (images.length === 0) return;
     let cancelled = false;
     Promise.all(
-      images.map(
-        (src) =>
-          new Promise<void>((resolve) => {
-            const img = new window.Image();
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            img.src = src;
-          }),
-      ),
+      images.map((src) => {
+        const img = new window.Image();
+        img.src = src;
+        return img.decode().catch(() => {});
+      }),
     ).then(() => { if (!cancelled) setAllLoaded(true); });
     return () => { cancelled = true; };
   }, [images]);
@@ -126,13 +123,13 @@ export function HomeCarousel({ images }: Props) {
           onTransitionEnd={onTransitionEnd}
         >
           {extended.map((src, i) => (
-            <div key={i} className="aspect-square sm:aspect-[16/9]" style={{ width: `${100 / total}%` }}>
+            <div key={i} className="aspect-square sm:aspect-[16/9] flex items-center justify-center" style={{ width: `${100 / total}%` }}>
               <img
                 src={src}
                 alt=""
                 draggable={false}
                 loading="eager"
-                className="w-full h-full object-cover pointer-events-none"
+                className="w-full h-full object-contain pointer-events-none"
               />
             </div>
           ))}
