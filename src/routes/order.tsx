@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Minus, Plus, Tag, Truck, CheckCircle2, Receipt, Sparkles, ShoppingBag, X, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, SHIPPING_ZONES, formatEGP, computeLineTotal, effectivePrice, type ProductSlug } from "@/data/products";
 import { useT } from "@/lib/i18n";
-import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type DynamicBundle, type BundleOverride } from "@/lib/api";
+import { api, type PublicInventoryStatus, type Pricing, type DynamicProduct, type DynamicBundle, type BundleOverride, type StaticProductOverride } from "@/lib/api";
 
 export const Route = createFileRoute("/order")({
   component: OrderPage,
@@ -61,22 +61,31 @@ function OrderPage() {
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [staticColorOverrides, setStaticColorOverrides] = useState<Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]>>({});
 
-  useEffect(() => { api.getInventoryStatus().then(setInventoryStatus).catch(() => {}); }, []);
-  useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
-  useEffect(() => { api.getFreeShippingStatus().then((r) => setFreeShippingActive(r.active)).catch(() => {}); }, []);
-  useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
-  useEffect(() => { api.getDynamicBundles().then(setUserCreatedBundles).catch(() => {}); }, []);
+  const [dataReady, setDataReady] = useState(false);
   const [staticImageOverrides, setStaticImageOverrides] = useState<Record<string, string[]>>({});
   useEffect(() => {
-    api.getProductsMeta().then((m) => {
-      setBundleOverrides(m.bundleOverrides);
-      setStaticImageOverrides(m.imageOverrides ?? {});
+    Promise.all([
+      api.getInventoryStatus().catch((): PublicInventoryStatus => ({ outOfStock: [], outOfStockColors: {}, colorQty: {} })),
+      api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
+      api.getFreeShippingStatus().catch(() => ({ active: false })),
+      api.getDynamicProducts().catch((): DynamicProduct[] => []),
+      api.getDynamicBundles().catch((): DynamicBundle[] => []),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
+    ]).then(([inv, pricingData, fs, dynProds, dynBundles, meta]) => {
+      setInventoryStatus(inv);
+      setPricing(pricingData);
+      setFreeShippingActive(fs.active);
+      setDynamicProducts(dynProds);
+      setUserCreatedBundles(dynBundles);
+      setBundleOverrides(meta.bundleOverrides);
+      setStaticImageOverrides(meta.imageOverrides ?? {});
       const colorOvs: Record<string, { id: string; label: { en: string; ar: string }; hex: string }[]> = {};
-      for (const [slug, ov] of Object.entries(m.staticOverrides ?? {})) {
+      for (const [slug, ov] of Object.entries(meta.staticOverrides ?? {})) {
         if (ov.colors?.length) colorOvs[slug] = ov.colors;
       }
       setStaticColorOverrides(colorOvs);
-    }).catch(() => {});
+      setDataReady(true);
+    });
   }, []);
 
   // Merge static product data with live inventory status, pricing overrides, and color overrides
@@ -519,6 +528,16 @@ function OrderPage() {
             </div>
           </div>
         </section>
+      </Layout>
+    );
+  }
+
+  if (!dataReady) {
+    return (
+      <Layout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-deep-blue border-t-transparent animate-spin" />
+        </div>
       </Layout>
     );
   }

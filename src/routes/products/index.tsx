@@ -17,15 +17,22 @@ function ProductsPage() {
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
-  useEffect(() => { api.getPricingPublic().then(setPricing).catch(() => {}); }, []);
-  useEffect(() => { api.getDynamicProducts().then(setDynamicProducts).catch(() => {}); }, []);
+  const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
-    api.getProductsMeta().then((m) => {
-      setHiddenSlugs(m.hidden);
-      setImageOverrides(m.imageOverrides ?? {});
-    }).catch(() => {});
+    Promise.all([
+      api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
+      api.getDynamicProducts().catch((): DynamicProduct[] => []),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
+      api.getDynamicBundles().catch((): DynamicBundle[] => []),
+    ]).then(([pricingData, dynProds, meta, dynBundles]) => {
+      setPricing(pricingData);
+      setDynamicProducts(dynProds);
+      setHiddenSlugs(meta.hidden);
+      setImageOverrides(meta.imageOverrides ?? {});
+      setUserBundles(dynBundles);
+      setDataReady(true);
+    });
   }, []);
-  useEffect(() => { api.getDynamicBundles().then(setUserBundles).catch(() => {}); }, []);
 
   const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
@@ -55,6 +62,12 @@ function ProductsPage() {
         </div>
       </section>
 
+      {!dataReady ? (
+        <div className="pb-16 -mt-10 flex items-center justify-center min-h-[40vh]">
+          <div className="h-8 w-8 rounded-full border-2 border-deep-blue border-t-transparent animate-spin" />
+        </div>
+      ) : (
+      <>
       <section className="pb-12 -mt-10">
         <div className="container-lux grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {products.map((p) => {
@@ -227,6 +240,8 @@ function ProductsPage() {
           </div>
         </div>
       </section>
+      </>
+      )}
     </Layout>
   );
 }

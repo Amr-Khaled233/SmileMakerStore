@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
 import { ProductDetail } from "@/components/site/ProductDetail";
-import { PRODUCTS, PRODUCT_DETAILS, formatEGP, type ProductSlug } from "@/data/products";
-import { api, type DynamicProduct } from "@/lib/api";
+import { PRODUCTS, PRODUCT_DETAILS, formatEGP, type ProductSlug, type ProductDetails } from "@/data/products";
+import { api, type DynamicProduct, type Pricing } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 import { Star, ShoppingCart, Check, ArrowRight } from "lucide-react";
@@ -19,30 +19,67 @@ function ProductPage() {
   const staticDetails = PRODUCT_DETAILS[slug as ProductSlug];
 
   if (staticProduct && staticDetails) {
+    return <StaticProductPage staticProduct={staticProduct} staticDetails={staticDetails} />;
+  }
+
+  return <DynamicProductPage slug={slug} lang={lang} />;
+}
+
+function StaticProductPage({ staticProduct, staticDetails }: { staticProduct: (typeof PRODUCTS)[number]; staticDetails: ProductDetails }) {
+  const [ready, setReady] = useState(false);
+  const [price, setPrice] = useState(staticProduct.price);
+  const [salePrice, setSalePrice] = useState<number | undefined>(staticProduct.salePrice);
+  const [gallery, setGallery] = useState(staticDetails.gallery);
+
+  useEffect(() => {
+    Promise.all([
+      api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
+    ]).then(([pricingData, meta]) => {
+      const priceOv = pricingData.products.find((x) => x.slug === staticProduct.slug);
+      if (priceOv) {
+        if (priceOv.price !== undefined) setPrice(priceOv.price);
+        setSalePrice(priceOv.salePrice ?? undefined);
+      }
+      const imgs = meta.imageOverrides?.[staticProduct.slug];
+      if (imgs?.length) {
+        setGallery(imgs.map((src) => ({ src, alt: staticProduct.title })));
+      }
+      setReady(true);
+    });
+  }, [staticProduct.slug]);
+
+  if (!ready) {
     return (
       <Layout>
-        <ProductDetail
-          eyebrow={staticDetails.eyebrow}
-          slug={staticProduct.slug}
-          title={staticProduct.title}
-          tagline={staticProduct.tagline}
-          price={staticProduct.price}
-          salePrice={staticProduct.salePrice}
-          rating={staticProduct.rating}
-          reviews={staticProduct.reviews}
-          image={staticDetails.gallery[0]?.src ?? staticProduct.image}
-          gallery={staticDetails.gallery}
-          description={staticProduct.description}
-          features={staticDetails.features}
-          benefits={staticDetails.benefits}
-          testimonials={staticDetails.testimonials}
-          related={staticDetails.related}
-        />
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-deep-blue border-t-transparent animate-spin" />
+        </div>
       </Layout>
     );
   }
 
-  return <DynamicProductPage slug={slug} lang={lang} />;
+  return (
+    <Layout>
+      <ProductDetail
+        eyebrow={staticDetails.eyebrow}
+        slug={staticProduct.slug}
+        title={staticProduct.title}
+        tagline={staticProduct.tagline}
+        price={price}
+        salePrice={salePrice}
+        rating={staticProduct.rating}
+        reviews={staticProduct.reviews}
+        image={gallery[0]?.src ?? staticProduct.image}
+        gallery={gallery}
+        description={staticProduct.description}
+        features={staticDetails.features}
+        benefits={staticDetails.benefits}
+        testimonials={staticDetails.testimonials}
+        related={staticDetails.related}
+      />
+    </Layout>
+  );
 }
 
 function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" }) {
