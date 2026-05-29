@@ -20,7 +20,7 @@ export function withLock<T>(fn: () => Promise<T>): Promise<T> {
 type DbDataRaw = Omit<DbData, "freeShipping"> & { freeShipping?: FreeShippingWindow };
 
 const EMPTY_PRICING = { products: [], bundles: [], promoCodes: [] };
-const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null, dynamicProducts: [], dynamicBundles: [], productImageOverrides: {}, productHidden: [], staticOverrides: {}, bundleOverrides: {}, reviewImages: [] };
+const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null, dynamicProducts: [], dynamicBundles: [], productImageOverrides: {}, productHidden: [], staticOverrides: {}, bundleOverrides: {}, reviewImages: [], carouselImages: [] };
 
 let _client: MongoClient | null = null;
 let _db: Db | null = null;
@@ -49,6 +49,7 @@ export async function readDb(): Promise<DbData> {
   if (!data.bundleOverrides) data.bundleOverrides = {};
   if (!data.dynamicBundles) data.dynamicBundles = [];
   if (!data.reviewImages) data.reviewImages = [];
+  if (!data.carouselImages) data.carouselImages = [];
   return { ...data, freeShipping: data.freeShipping ?? null };
 }
 

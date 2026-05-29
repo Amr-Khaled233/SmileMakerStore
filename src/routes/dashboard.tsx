@@ -26,6 +26,7 @@ import { SalesSection } from "@/components/dashboard/SalesSection";
 import { DeliveredSection } from "@/components/dashboard/DeliveredSection";
 import { ProductsSection } from "@/components/dashboard/ProductsSection";
 import { ReviewsSection } from "@/components/dashboard/ReviewsSection";
+import { CarouselSection } from "@/components/dashboard/CarouselSection";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered" | "products" | "reviews">("orders");
+  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered" | "products" | "reviews" | "carousel">("orders");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
@@ -185,6 +186,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               { key: "delivered", label: "المُسلَّمة" },
               { key: "products",  label: "المنتجات"   },
               { key: "reviews",   label: "آراء العملاء" },
+              { key: "carousel",  label: "السلايدر"     },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -329,6 +331,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
         {/* Reviews tab */}
         {tab === "reviews" && <ReviewsSection token={token} />}
+
+        {/* Carousel tab */}
+        {tab === "carousel" && <CarouselSection token={token} />}
       </div>
     </div>
   );

@@ -173,6 +173,14 @@ export const api = {
     req<{ success: boolean }>("POST", "/reviews", { image }, token),
   deleteReviewImage: (token: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/reviews/${idx}`, undefined, token),
+
+  // Home page "Our Products" carousel images
+  getCarouselImages: () =>
+    req<string[]>("GET", "/carousel"),
+  addCarouselImage: (token: string, image: string) =>
+    req<{ success: boolean }>("POST", "/carousel", { image }, token),
+  deleteCarouselImage: (token: string, idx: number) =>
+    req<{ success: boolean }>("DELETE", `/carousel/${idx}`, undefined, token),
 };
 
 // Manager token helpers — sessionStorage so the token is cleared when the browser tab/session closes.

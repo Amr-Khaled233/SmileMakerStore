@@ -118,4 +118,5 @@ export type DbData = {
   staticOverrides: Record<string, StaticProductOverride>; // slug -> text/feature overrides
   bundleOverrides: Record<string, BundleOverride>; // bundleId -> config overrides
   reviewImages: string[]; // customer review images for homepage slider
+  carouselImages: string[]; // home page "Our Products" showcase images
 };

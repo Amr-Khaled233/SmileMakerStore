@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import type React from "react";
 import { Package, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DynamicProduct, DynamicBundle, BundleOverride, StaticProductOverride, Pricing } from "@/lib/api";

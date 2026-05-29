@@ -8,6 +8,7 @@ import { formatEGP, PRODUCTS, effectivePrice } from "@/data/products";
 import { useEffect, useState } from "react";
 import { api, type Pricing } from "@/lib/api";
 import { ProductCarousel } from "@/components/site/ProductCarousel";
+import { HomeCarousel } from "@/components/site/HomeCarousel";
 import { ReviewsSlider } from "@/components/site/ReviewsSlider";
 
 export const Route = createFileRoute("/")({
@@ -111,17 +112,20 @@ function HomePage() {
         <div className="arc-divider" />
       </section>
 
-      {/* ── Product Carousel — desktop ── */}
-      <section className="hidden sm:block py-10 sm:py-14">
-        <div className="container-lux max-w-2xl">
-          <div className="text-center mb-6">
+      {/* ── Products Showcase — desktop ── */}
+      <section className="hidden sm:block py-14">
+        <div className="container-lux">
+          <div className="text-center mb-10">
             <p className="eyebrow">{t("home.heroBadge")}</p>
-            <h2 className="mt-2 text-3xl sm:text-4xl font-display">
+            <h2 className="mt-2 text-4xl sm:text-5xl font-display">
               {tl({ en: "Our Products", ar: "منتجاتنا" })}
             </h2>
+            <p className="mt-3 text-muted-foreground text-sm max-w-md mx-auto">
+              {tl({ en: "Drag to explore — new images can be managed from the dashboard", ar: "اسحب للتصفح — يمكن تعديل الصور من لوحة التحكم" })}
+            </p>
           </div>
-          <ProductCarousel />
-          <div className="mt-6 text-center">
+          <HomeCarousel />
+          <div className="mt-8 text-center">
             <Link to="/products" className="btn-primary">
               {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
             </Link>
