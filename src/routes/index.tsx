@@ -7,7 +7,6 @@ import { useT, type L } from "@/lib/i18n";
 import { formatEGP, PRODUCTS, effectivePrice } from "@/data/products";
 import { useEffect, useState } from "react";
 import { api, type Pricing } from "@/lib/api";
-import { ProductCarousel } from "@/components/site/ProductCarousel";
 import { HomeCarousel } from "@/components/site/HomeCarousel";
 import { ReviewsSlider } from "@/components/site/ReviewsSlider";
 
@@ -63,8 +62,8 @@ function HomePage() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-soft" />
         <div className="absolute inset-0" style={{ background: "var(--gradient-arc)" }} />
-        <div className="container-lux relative pt-16 pb-24 lg:pt-24 lg:pb-32 grid lg:grid-cols-2 gap-12 items-center">
-          <div className="animate-fade-up">
+        <div className="container-lux relative pt-8 pb-16 lg:pt-24 lg:pb-32 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div className="animate-fade-up order-2 lg:order-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white/70 backdrop-blur px-4 py-1.5">
               <Sparkles className="h-3.5 w-3.5 text-deep-blue" />
               <span className="text-xs font-medium tracking-wide text-ink">{t("home.heroBadge")}</span>
@@ -75,17 +74,13 @@ function HomePage() {
             <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed hidden sm:block">
               {t("home.heroLead")}
             </p>
-            {/* Carousel — mobile only (shown inside hero) */}
-            <div className="mt-6 sm:hidden">
-              <ProductCarousel />
-            </div>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/products" className="btn-primary">
                 {t("btn.shopNow")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
               </Link>
               <Link to="/about" className="btn-ghost">{t("btn.learnMore")}</Link>
             </div>
-            <div className="mt-10 flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="mt-8 flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-1 text-deep-blue">
                 {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="h-4 w-4 fill-current" />)}
               </div>
@@ -93,15 +88,15 @@ function HomePage() {
             </div>
           </div>
 
-          <div className="relative">
-            <div className="relative aspect-[4/5] max-w-md mx-auto">
+          <div className="relative order-1 lg:order-2">
+            <div className="relative aspect-[4/5] max-w-[260px] sm:max-w-sm lg:max-w-md mx-auto">
               <div className="absolute inset-0 rounded-[3rem] overflow-hidden shadow-[var(--shadow-glow)]">
                 <img src={hero} alt="Brilliant white smile" width={1600} height={2000} className="w-full h-full object-cover" />
               </div>
               <img src={logo} alt="" aria-hidden
-                className="absolute -bottom-10 -start-10 h-32 w-32 object-contain animate-float drop-shadow-2xl"
+                className="hidden sm:block absolute -bottom-10 -start-10 h-32 w-32 object-contain animate-float drop-shadow-2xl"
               />
-              <div className="absolute -top-6 -end-6 glass-card rounded-2xl p-4 max-w-[200px] animate-float" style={{ animationDelay: "1s" }}>
+              <div className="hidden sm:block absolute -top-6 -end-6 glass-card rounded-2xl p-4 max-w-[200px] animate-float" style={{ animationDelay: "1s" }}>
                 <p className="text-xs uppercase tracking-widest text-deep-blue">{t("home.whiterIn")}</p>
                 <p className="text-3xl font-display text-gradient">{t("home.days")}</p>
                 <p className="text-xs text-muted-foreground mt-1">{t("home.clinical")}</p>
