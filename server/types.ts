@@ -69,6 +69,16 @@ export type Pricing = {
   promoCodes: PromoCodeEntry[];
 };
 
+// Mutable manager-controlled state for a single commission line (one party of
+// one order). Amount/date are derived from the order; only these bits are
+// editable. Keyed by `${orderId}:${party}` where party is "doctor" | "report".
+export type CommissionState = {
+  paid?: boolean;
+  paidAt?: number;
+  amountOverride?: number; // overrides the auto-computed commission amount
+  archived?: boolean; // hidden from the ledger (e.g. after being paid & cleared)
+};
+
 export type FreeShippingWindow = {
   from: string; // ISO datetime string (local time, e.g. "2026-05-24T14:00")
   to: string;
@@ -131,4 +141,5 @@ export type DbData = {
   bundleOverrides: Record<string, BundleOverride>; // bundleId -> config overrides
   reviewImages: string[]; // customer review images for homepage slider
   carouselImages: string[]; // home page "Our Products" showcase images
+  commissionState: Record<string, CommissionState>; // `${orderId}:${party}` -> state
 };

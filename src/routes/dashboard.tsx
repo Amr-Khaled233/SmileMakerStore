@@ -23,6 +23,7 @@ import { InventorySection } from "@/components/dashboard/InventorySection";
 import { PricingSection } from "@/components/dashboard/PricingSection";
 import { AnalyticsSection } from "@/components/dashboard/AnalyticsSection";
 import { SalesSection } from "@/components/dashboard/SalesSection";
+import { CommissionsSection } from "@/components/dashboard/CommissionsSection";
 import { DeliveredSection } from "@/components/dashboard/DeliveredSection";
 import { ProductsSection } from "@/components/dashboard/ProductsSection";
 import { ReviewsSection } from "@/components/dashboard/ReviewsSection";
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "delivered" | "products" | "reviews" | "carousel">("orders");
+  const [tab, setTab] = useState<"orders" | "inventory" | "pricing" | "analytics" | "sales" | "commissions" | "delivered" | "products" | "reviews" | "carousel">("orders");
   const [searchQuery, setSearchQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null);
@@ -183,6 +184,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               { key: "pricing",   label: "الأسعار"    },
               { key: "analytics", label: "التحليلات"  },
               { key: "sales",     label: "المبيعات"   },
+              { key: "commissions", label: "العمولات" },
               { key: "delivered", label: "المُسلَّمة" },
               { key: "products",  label: "المنتجات"   },
               { key: "reviews",   label: "آراء العملاء" },
@@ -322,6 +324,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
         {/* Sales tab */}
         {tab === "sales" && <SalesSection orders={orders} />}
+
+        {/* Commissions tab */}
+        {tab === "commissions" && <CommissionsSection token={token} />}
 
         {/* Delivered tab */}
         {tab === "delivered" && <DeliveredSection orders={orders} onDelete={handleDeleteOrder} />}

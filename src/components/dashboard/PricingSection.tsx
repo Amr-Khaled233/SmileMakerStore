@@ -1,8 +1,30 @@
 import { useEffect, useState, useCallback } from "react";
-import { Tag, Trash2, Truck, Package } from "lucide-react";
+import { Tag, Trash2, Truck, Package, Pencil } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DynamicProduct, DynamicBundle, PromoCodeEntry } from "@/lib/api";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
+
+type PromoDraft = {
+  code: string;
+  pct: string;
+  label: string;
+  doctorName: string;
+  doctorPct: string;
+  reportName: string;
+  reportPct: string;
+};
+
+const EMPTY_PROMO_DRAFT: PromoDraft = { code: "", pct: "", label: "", doctorName: "", doctorPct: "", reportName: "", reportPct: "" };
+
+const promoToDraft = (p: PromoCodeEntry): PromoDraft => ({
+  code: p.code,
+  pct: String(p.pct),
+  label: p.label,
+  doctorName: p.doctorName ?? "",
+  doctorPct: p.doctorPct != null ? String(p.doctorPct) : "",
+  reportName: p.reportName ?? "",
+  reportPct: p.reportPct != null ? String(p.reportPct) : "",
+});
 
 function toDatetimeLocal(isoStr: string): string {
   const d = new Date(isoStr);
@@ -19,7 +41,11 @@ export function PricingSection({ token }: { token: string }) {
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   const [userBundleDrafts, setUserBundleDrafts] = useState<Record<string, string>>({});
   const [promos, setPromos] = useState<PromoCodeEntry[]>([]);
-  const [newPromo, setNewPromo] = useState({ code: "", pct: "", label: "", doctorName: "", doctorPct: "", reportName: "", reportPct: "" });
+  const [newPromo, setNewPromo] = useState<PromoDraft>(EMPTY_PROMO_DRAFT);
+  // Code currently being edited inline (the original code, used to detect renames)
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<PromoDraft>(EMPTY_PROMO_DRAFT);
+  const [promoSaving, setPromoSaving] = useState(false);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
 
@@ -131,22 +157,58 @@ export function PricingSection({ token }: { token: string }) {
     await load();
   };
 
-  const addPromo = async () => {
-    const code = newPromo.code.trim().toUpperCase();
-    const pct = Number(newPromo.pct);
-    const label = newPromo.label.trim();
-    if (!code || isNaN(pct) || pct <= 0 || pct > 100 || !label) return;
-    const doctorName = newPromo.doctorName.trim();
-    const reportName = newPromo.reportName.trim();
+  // Validate a draft and persist it. Returns false if the draft is invalid.
+  const savePromoDraft = async (draft: PromoDraft): Promise<boolean> => {
+    const code = draft.code.trim().toUpperCase();
+    const pct = Number(draft.pct);
+    const label = draft.label.trim();
+    if (!code || isNaN(pct) || pct <= 0 || pct > 100 || !label) return false;
+    const doctorName = draft.doctorName.trim();
+    const reportName = draft.reportName.trim();
     const commission = {
       doctorName: doctorName || undefined,
-      doctorPct: doctorName ? Number(newPromo.doctorPct) || 10 : undefined,
+      doctorPct: doctorName ? Number(draft.doctorPct) || 10 : undefined,
       reportName: reportName || undefined,
-      reportPct: reportName ? Number(newPromo.reportPct) || 5 : undefined,
+      reportPct: reportName ? Number(draft.reportPct) || 5 : undefined,
     };
     await api.upsertPromoCode(token, code, pct, label, commission);
-    setNewPromo({ code: "", pct: "", label: "", doctorName: "", doctorPct: "", reportName: "", reportPct: "" });
-    await load();
+    return true;
+  };
+
+  const addPromo = async () => {
+    setPromoSaving(true);
+    const ok = await savePromoDraft(newPromo);
+    if (ok) {
+      setNewPromo(EMPTY_PROMO_DRAFT);
+      await load();
+    }
+    setPromoSaving(false);
+  };
+
+  const startEdit = (promo: PromoCodeEntry) => {
+    setEditingCode(promo.code);
+    setEditDraft(promoToDraft(promo));
+  };
+
+  const cancelEdit = () => {
+    setEditingCode(null);
+    setEditDraft(EMPTY_PROMO_DRAFT);
+  };
+
+  const saveEdit = async () => {
+    if (!editingCode) return;
+    setPromoSaving(true);
+    const ok = await savePromoDraft(editDraft);
+    if (ok) {
+      // If the code itself was renamed, remove the old entry.
+      const newCode = editDraft.code.trim().toUpperCase();
+      if (newCode !== editingCode) {
+        await api.deletePromoCode(token, editingCode).catch(() => {});
+      }
+      cancelEdit();
+      await load();
+    }
+    setPromoSaving(false);
   };
 
   const saveFreeShipping = async () => {
@@ -394,141 +456,65 @@ export function PricingSection({ token }: { token: string }) {
         </p>
 
         <div className="space-y-2">
-          {promos.map((promo) => (
-            <div key={promo.code} className="lux-card p-3">
-              <div className="flex items-center gap-3">
-                <Tag className="h-3.5 w-3.5 text-deep-blue shrink-0" />
-                <span className="font-mono text-sm font-bold text-deep-blue" dir="ltr">{promo.code}</span>
-                <span className="text-sm font-medium text-ink">{promo.pct}%</span>
-                <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{promo.label}</span>
-                <button
-                  onClick={() => deletePromo(promo.code)}
-                  className="h-7 w-7 rounded-full border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-all shrink-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              {(promo.doctorName || promo.reportName) && (
-                <div className="mt-2 flex flex-wrap gap-1.5 ps-6">
-                  {promo.doctorName && (
-                    <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
-                      🩺 {promo.doctorName} · {promo.doctorPct ?? 10}%
-                    </span>
-                  )}
-                  {promo.reportName && (
-                    <span className="text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5">
-                      📋 {promo.reportName} · {promo.reportPct ?? 5}%
-                    </span>
-                  )}
+          {promos.map((promo) =>
+            editingCode === promo.code ? (
+              <div key={promo.code} className="lux-card p-4 ring-2 ring-deep-blue/25">
+                <p className="text-sm font-medium text-ink mb-3">تعديل الكود</p>
+                <PromoFields draft={editDraft} setDraft={setEditDraft} />
+                <div className="mt-3 flex items-center gap-2">
+                  <button onClick={saveEdit} disabled={promoSaving} className="btn-primary text-sm py-2 px-5 disabled:opacity-50">
+                    {promoSaving ? "جاري الحفظ..." : "حفظ التعديل"}
+                  </button>
+                  <button onClick={cancelEdit} disabled={promoSaving} className="btn-ghost text-sm py-2 px-4">
+                    إلغاء
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ) : (
+              <div key={promo.code} className="lux-card p-3">
+                <div className="flex items-center gap-3">
+                  <Tag className="h-3.5 w-3.5 text-deep-blue shrink-0" />
+                  <span className="font-mono text-sm font-bold text-deep-blue" dir="ltr">{promo.code}</span>
+                  <span className="text-sm font-medium text-ink">{promo.pct}%</span>
+                  <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">{promo.label}</span>
+                  <button
+                    onClick={() => startEdit(promo)}
+                    className="h-7 w-7 rounded-full border border-border text-muted-foreground hover:bg-soft hover:text-deep-blue flex items-center justify-center transition-all shrink-0"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deletePromo(promo.code)}
+                    className="h-7 w-7 rounded-full border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-all shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {(promo.doctorName || promo.reportName) && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 ps-6">
+                    {promo.doctorName && (
+                      <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                        🩺 {promo.doctorName} · {promo.doctorPct ?? 10}%
+                      </span>
+                    )}
+                    {promo.reportName && (
+                      <span className="text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5">
+                        📋 {promo.reportName} · {promo.reportPct ?? 5}%
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          )}
         </div>
 
         {/* Add new promo */}
         <div className="mt-4 lux-card p-4">
           <p className="text-sm font-medium text-ink mb-3">إضافة كود جديد</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">الكود</label>
-              <input
-                type="text"
-                value={newPromo.code}
-                onChange={(e) => setNewPromo((n) => ({ ...n, code: e.target.value.toUpperCase().replace(/\s/g, "") }))}
-                placeholder="PROMO20"
-                maxLength={20}
-                className="lux-input text-sm"
-                dir="ltr"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">نسبة الخصم %</label>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={newPromo.pct}
-                onChange={(e) => setNewPromo((n) => ({ ...n, pct: e.target.value }))}
-                placeholder="15"
-                className="lux-input text-sm"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="text-xs text-muted-foreground mb-1 block">الوصف</label>
-              <input
-                type="text"
-                value={newPromo.label}
-                onChange={(e) => setNewPromo((n) => ({ ...n, label: e.target.value }))}
-                placeholder="خصم 15% على طلبك"
-                maxLength={100}
-                className="lux-input text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Optional referral commissions */}
-          <div className="mt-4 pt-4 border-t border-dashed border-border">
-            <p className="text-sm font-medium text-ink mb-1">عمولة الإحالة (اختياري)</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              لو حطيت اسم، أي أوردر يستخدم الكود ده هيحسبله نسبة عمولة من إجمالي الأوردر. سيب النسبة فاضية للقيمة الافتراضية (دكتور 10% · تقرير طبي 5%).
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">اسم الدكتور</label>
-                  <input
-                    type="text"
-                    value={newPromo.doctorName}
-                    onChange={(e) => setNewPromo((n) => ({ ...n, doctorName: e.target.value }))}
-                    placeholder="د. أحمد"
-                    maxLength={100}
-                    className="lux-input text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">نسبته %</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={newPromo.doctorPct}
-                    onChange={(e) => setNewPromo((n) => ({ ...n, doctorPct: e.target.value }))}
-                    placeholder="10"
-                    className="lux-input text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">اسم التقرير الطبي</label>
-                  <input
-                    type="text"
-                    value={newPromo.reportName}
-                    onChange={(e) => setNewPromo((n) => ({ ...n, reportName: e.target.value }))}
-                    placeholder="تقرير العيادة"
-                    maxLength={100}
-                    className="lux-input text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">نسبته %</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={newPromo.reportPct}
-                    onChange={(e) => setNewPromo((n) => ({ ...n, reportPct: e.target.value }))}
-                    placeholder="5"
-                    className="lux-input text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button onClick={addPromo} className="mt-3 btn-ghost text-sm">
-            + إضافة
+          <PromoFields draft={newPromo} setDraft={setNewPromo} />
+          <button onClick={addPromo} disabled={promoSaving} className="mt-3 btn-ghost text-sm disabled:opacity-50">
+            {promoSaving ? "..." : "+ إضافة"}
           </button>
         </div>
       </section>
@@ -599,5 +585,117 @@ export function PricingSection({ token }: { token: string }) {
         </div>
       </section>
     </div>
+  );
+}
+
+// Shared editable fields for a promo code (code, discount %, label + optional
+// doctor/report commissions). Used by both the "add" and inline "edit" forms.
+function PromoFields({
+  draft,
+  setDraft,
+}: {
+  draft: PromoDraft;
+  setDraft: React.Dispatch<React.SetStateAction<PromoDraft>>;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">الكود</label>
+          <input
+            type="text"
+            value={draft.code}
+            onChange={(e) => setDraft((n) => ({ ...n, code: e.target.value.toUpperCase().replace(/\s/g, "") }))}
+            placeholder="PROMO20"
+            maxLength={20}
+            className="lux-input text-sm"
+            dir="ltr"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">نسبة الخصم %</label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={draft.pct}
+            onChange={(e) => setDraft((n) => ({ ...n, pct: e.target.value }))}
+            placeholder="15"
+            className="lux-input text-sm"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground mb-1 block">الوصف</label>
+          <input
+            type="text"
+            value={draft.label}
+            onChange={(e) => setDraft((n) => ({ ...n, label: e.target.value }))}
+            placeholder="خصم 15% على طلبك"
+            maxLength={100}
+            className="lux-input text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Optional referral commissions */}
+      <div className="mt-4 pt-4 border-t border-dashed border-border">
+        <p className="text-sm font-medium text-ink mb-1">عمولة الإحالة (اختياري)</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          لو حطيت اسم، أي أوردر يستخدم الكود ده هيحسبله نسبة عمولة من إجمالي الأوردر. سيب النسبة فاضية للقيمة الافتراضية (دكتور 10% · تقرير طبي 5%).
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">اسم الدكتور</label>
+              <input
+                type="text"
+                value={draft.doctorName}
+                onChange={(e) => setDraft((n) => ({ ...n, doctorName: e.target.value }))}
+                placeholder="د. أحمد"
+                maxLength={100}
+                className="lux-input text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">نسبته %</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={draft.doctorPct}
+                onChange={(e) => setDraft((n) => ({ ...n, doctorPct: e.target.value }))}
+                placeholder="10"
+                className="lux-input text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">اسم التقرير الطبي</label>
+              <input
+                type="text"
+                value={draft.reportName}
+                onChange={(e) => setDraft((n) => ({ ...n, reportName: e.target.value }))}
+                placeholder="تقرير العيادة"
+                maxLength={100}
+                className="lux-input text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">نسبته %</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={draft.reportPct}
+                onChange={(e) => setDraft((n) => ({ ...n, reportPct: e.target.value }))}
+                placeholder="5"
+                className="lux-input text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

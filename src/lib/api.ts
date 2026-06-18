@@ -8,6 +8,21 @@ export type PublicInventoryStatus = {
   colorQty: Record<string, Record<string, number>>;
 };
 
+export type CommissionLine = {
+  key: string;
+  orderId: string;
+  party: "doctor" | "report";
+  name: string;
+  pct: number;
+  orderTotal: number;
+  date: number;
+  amount: number;
+  computedAmount: number;
+  overridden: boolean;
+  paid: boolean;
+  paidAt?: number;
+};
+
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 
 async function req<T>(
@@ -179,6 +194,14 @@ export const api = {
     req<{ success: boolean }>("POST", "/reviews", { image }, token),
   deleteReviewImage: (token: string, idx: number) =>
     req<{ success: boolean }>("DELETE", `/reviews/${idx}`, undefined, token),
+
+  // Commission ledger (manager)
+  getCommissions: (token: string) =>
+    req<CommissionLine[]>("GET", "/commissions", undefined, token),
+  updateCommission: (token: string, key: string, patch: { paid?: boolean; amount?: number | null }) =>
+    req<{ success: boolean }>("PATCH", `/commissions/${encodeURIComponent(key)}`, patch, token),
+  deleteCommission: (token: string, key: string) =>
+    req<{ success: boolean }>("DELETE", `/commissions/${encodeURIComponent(key)}`, undefined, token),
 
   // Home page "Our Products" carousel images
   getCarouselImages: () =>

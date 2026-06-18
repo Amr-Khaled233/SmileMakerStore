@@ -12,6 +12,7 @@ import productsRouter from "./routes/products.js";
 import bundlesRouter from "./routes/bundles.js";
 import reviewsRouter from "./routes/reviews.js";
 import carouselRouter from "./routes/carousel.js";
+import commissionsRouter from "./routes/commissions.js";
 
 const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
   .split(",")
@@ -43,6 +44,7 @@ app.use("/api/products", productsRouter);
 app.use("/api/bundles", bundlesRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/carousel", carouselRouter);
+app.use("/api/commissions", commissionsRouter);
 
 // Serve the built frontend from the same Node process when a build exists
 // (e.g. single-server hosting like a Hostinger VPS). On platforms where the
