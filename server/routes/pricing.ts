@@ -80,9 +80,12 @@ router.post("/promoCodes", requireAuth, async (req, res) => {
   // name is provided; the percentage falls back to a sensible default.
   const cleanDoctorName = typeof doctorName === "string" ? doctorName.trim() : "";
   const cleanReportName = typeof reportName === "string" ? reportName.trim() : "";
+  // Accept any value in 0..100 (0 = no commission). Fall back only when the
+  // value is missing or out of range.
   const normPct = (v: unknown, fallback: number) => {
+    if (v === undefined || v === null || v === "") return fallback;
     const n = Number(v);
-    return !isNaN(n) && n > 0 && n <= 100 ? n : fallback;
+    return !isNaN(n) && n >= 0 && n <= 100 ? n : fallback;
   };
 
   const entry = {

@@ -165,11 +165,19 @@ export function PricingSection({ token }: { token: string }) {
     if (!code || isNaN(pct) || pct <= 0 || pct > 100 || !label) return false;
     const doctorName = draft.doctorName.trim();
     const reportName = draft.reportName.trim();
+    // Respect exactly what the manager types — including 0. The default only
+    // kicks in when the field is left completely empty.
+    const parsePct = (raw: string, fallback: number) => {
+      const t = raw.trim();
+      if (t === "") return fallback;
+      const n = Number(t);
+      return isNaN(n) ? fallback : Math.max(0, Math.min(100, n));
+    };
     const commission = {
       doctorName: doctorName || undefined,
-      doctorPct: doctorName ? Number(draft.doctorPct) || 10 : undefined,
+      doctorPct: doctorName ? parsePct(draft.doctorPct, 10) : undefined,
       reportName: reportName || undefined,
-      reportPct: reportName ? Number(draft.reportPct) || 5 : undefined,
+      reportPct: reportName ? parsePct(draft.reportPct, 5) : undefined,
     };
     await api.upsertPromoCode(token, code, pct, label, commission);
     return true;
