@@ -63,6 +63,16 @@ export function CommissionsSection({ token }: { token: string }) {
     setLineBusy(l.key, false);
   };
 
+  const markGroupPaid = async (g: Group) => {
+    const unpaid = g.items.filter((i) => !i.paid);
+    if (unpaid.length === 0) return;
+    if (!window.confirm(`تعليم ${unpaid.length} عمولة لـ"${g.name}" كمدفوعة (${formatEGP(g.owed)})؟`)) return;
+    unpaid.forEach((l) => setLineBusy(l.key, true));
+    await Promise.all(unpaid.map((l) => api.updateCommission(token, l.key, { paid: true }).catch(() => {})));
+    await load();
+    unpaid.forEach((l) => setLineBusy(l.key, false));
+  };
+
   const groups = useMemo(() => {
     const make = (party: "doctor" | "report"): Group[] => {
       const m = new Map<string, CommissionLine[]>();
@@ -107,18 +117,19 @@ export function CommissionsSection({ token }: { token: string }) {
           l.paid ? "bg-emerald-50/50 border-emerald-200" : "bg-white border-border"
         }`}
       >
-        {/* Paid toggle */}
+        {/* Paid toggle — labeled so it's obvious */}
         <button
           onClick={() => togglePaid(l)}
           disabled={isBusy}
-          title={l.paid ? "تم الاستلام — اضغط للتراجع" : "اضغط لتعليم كمستلَم"}
-          className={`h-7 w-7 rounded-full border flex items-center justify-center shrink-0 transition-all disabled:opacity-50 ${
+          title={l.paid ? "مدفوع — اضغط للتراجع" : "اضغط لتعليمه كمدفوع"}
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-50 ${
             l.paid
               ? "bg-emerald-500 border-emerald-500 text-white"
-              : "border-border text-transparent hover:border-emerald-400"
+              : "bg-white border-border text-muted-foreground hover:border-emerald-400 hover:text-emerald-600"
           }`}
         >
-          <Check className="h-4 w-4" />
+          <Check className="h-3.5 w-3.5" />
+          {l.paid ? "مدفوع" : "علّم مدفوع"}
         </button>
 
         {/* Date + order */}
@@ -184,24 +195,42 @@ export function CommissionsSection({ token }: { token: string }) {
     );
   };
 
-  const renderGroup = (g: Group) => (
-    <div key={g.name} className="lux-card p-4">
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <p className="font-medium text-ink">{g.name}</p>
-        <div className="flex items-center gap-2 text-xs">
-          <span className="bg-deep-blue/10 text-deep-blue font-bold rounded-full px-2.5 py-1">
-            مستحق: {formatEGP(g.owed)}
-          </span>
-          {g.paid > 0 && (
-            <span className="bg-emerald-50 text-emerald-700 rounded-full px-2.5 py-1">
-              مستلَم: {formatEGP(g.paid)}
-            </span>
-          )}
+  const renderGroup = (g: Group) => {
+    const unpaidCount = g.items.filter((i) => !i.paid).length;
+    return (
+      <div key={g.name} className="lux-card p-4">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <p className="font-medium text-ink">{g.name}</p>
+          <div className="flex items-center gap-2 text-xs">
+            {g.owed > 0 ? (
+              <span className="bg-deep-blue/10 text-deep-blue font-bold rounded-full px-2.5 py-1">
+                مستحق: {formatEGP(g.owed)}
+              </span>
+            ) : (
+              <span className="bg-emerald-50 text-emerald-700 font-medium rounded-full px-2.5 py-1">
+                ✓ اتدفع بالكامل
+              </span>
+            )}
+            {g.paid > 0 && (
+              <span className="bg-emerald-50 text-emerald-700 rounded-full px-2.5 py-1">
+                مستلَم: {formatEGP(g.paid)}
+              </span>
+            )}
+            {unpaidCount > 0 && (
+              <button
+                onClick={() => markGroupPaid(g)}
+                className="inline-flex items-center gap-1 bg-emerald-500 text-white font-medium rounded-full px-3 py-1 hover:bg-emerald-600 transition-colors"
+              >
+                <Check className="h-3.5 w-3.5" />
+                علّم الكل مدفوع
+              </button>
+            )}
+          </div>
         </div>
+        <div className="space-y-2">{g.items.map(renderLine)}</div>
       </div>
-      <div className="space-y-2">{g.items.map(renderLine)}</div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-8">
