@@ -1,11 +1,35 @@
 import { useEffect, useState, useMemo } from "react";
-import { TrendingUp, Package } from "lucide-react";
+import { TrendingUp, Package, Stethoscope, FileText } from "lucide-react";
 import type { Order } from "@/lib/api";
 import { formatEGP } from "@/data/products";
 import { CHART_GRADIENTS } from "./types";
 
+type CommissionRow = { name: string; pct: number; orders: number; sales: number; commission: number };
+
 export function SalesSection({ orders }: { orders: Order[] }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  // Referral commissions — aggregated from the commission snapshot stored on
+  // each order. Base = order total. Grouped separately for doctors & reports.
+  const commissions = useMemo(() => {
+    const doctors = new Map<string, CommissionRow>();
+    const reports = new Map<string, CommissionRow>();
+    const add = (map: Map<string, CommissionRow>, name: string, pct: number, total: number) => {
+      const ex = map.get(name) ?? { name, pct, orders: 0, sales: 0, commission: 0 };
+      ex.orders += 1;
+      ex.sales += total;
+      ex.commission += Math.round((total * pct) / 100);
+      ex.pct = pct;
+      map.set(name, ex);
+    };
+    for (const o of orders) {
+      if (o.promoDoctorName && o.promoDoctorPct) add(doctors, o.promoDoctorName, o.promoDoctorPct, o.total);
+      if (o.promoReportName && o.promoReportPct) add(reports, o.promoReportName, o.promoReportPct, o.total);
+    }
+    const sort = (m: Map<string, CommissionRow>) => [...m.values()].sort((a, b) => b.commission - a.commission);
+    return { doctors: sort(doctors), reports: sort(reports) };
+  }, [orders]);
+  const hasCommissions = commissions.doctors.length > 0 || commissions.reports.length > 0;
 
   const monthlyStats = useMemo(() => {
     const map = new Map<string, { label: string; count: number; revenue: number; list: Order[] }>();
@@ -132,6 +156,67 @@ export function SalesSection({ orders }: { orders: Order[] }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Referral commissions */}
+      {hasCommissions && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <CommissionCard
+            title="عمولات الدكاترة"
+            icon={Stethoscope}
+            rows={commissions.doctors}
+            empty="لا توجد أكواد مربوطة بدكتور"
+          />
+          <CommissionCard
+            title="عمولات التقارير الطبية"
+            icon={FileText}
+            rows={commissions.reports}
+            empty="لا توجد أكواد مربوطة بتقرير طبي"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommissionCard({
+  title,
+  icon: Icon,
+  rows,
+  empty,
+}: {
+  title: string;
+  icon: typeof Stethoscope;
+  rows: CommissionRow[];
+  empty: string;
+}) {
+  const totalCommission = rows.reduce((s, r) => s + r.commission, 0);
+  return (
+    <div className="lux-card p-5 sm:p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="h-5 w-5 text-deep-blue" />
+        <h3 className="font-display text-xl">{title}</h3>
+        {rows.length > 0 && (
+          <span className="ms-auto text-sm font-bold text-deep-blue">{formatEGP(totalCommission)}</span>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">العمولة محسوبة من إجمالي كل أوردر استخدم الكود</p>
+      {rows.length === 0 ? (
+        <p className="text-center py-6 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="space-y-2.5">
+          {rows.map((r) => (
+            <div key={r.name} className="flex items-center justify-between gap-3 rounded-xl bg-soft px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink truncate">{r.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {r.orders} أوردر · مبيعات {formatEGP(r.sales)} · {r.pct}%
+                </p>
+              </div>
+              <span className="text-sm font-bold text-deep-blue whitespace-nowrap">{formatEGP(r.commission)}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

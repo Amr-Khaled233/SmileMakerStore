@@ -81,8 +81,14 @@ export const api = {
     req<{ success: boolean }>("PATCH", `/pricing/products/${slug}`, { price, salePrice }, token),
   updateBundlePrice: (token: string, id: string, price: number) =>
     req<{ success: boolean }>("PATCH", `/pricing/bundles/${id}`, { price }, token),
-  upsertPromoCode: (token: string, code: string, pct: number, label: string) =>
-    req<{ success: boolean }>("POST", "/pricing/promoCodes", { code, pct, label }, token),
+  upsertPromoCode: (
+    token: string,
+    code: string,
+    pct: number,
+    label: string,
+    commission?: { doctorName?: string; doctorPct?: number; reportName?: string; reportPct?: number }
+  ) =>
+    req<{ success: boolean }>("POST", "/pricing/promoCodes", { code, pct, label, ...commission }, token),
   deletePromoCode: (token: string, code: string) =>
     req<{ success: boolean }>("DELETE", `/pricing/promoCodes/${encodeURIComponent(code)}`, undefined, token),
 

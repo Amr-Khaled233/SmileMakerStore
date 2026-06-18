@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import authRouter from "./routes/auth.js";
 import ordersRouter from "./routes/orders.js";
 import inventoryRouter from "./routes/inventory.js";
@@ -40,5 +43,20 @@ app.use("/api/products", productsRouter);
 app.use("/api/bundles", bundlesRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/carousel", carouselRouter);
+
+// Serve the built frontend from the same Node process when a build exists
+// (e.g. single-server hosting like a Hostinger VPS). On platforms where the
+// frontend is served separately (e.g. Vercel CDN) the dist folder isn't
+// present in the function bundle, so this is skipped automatically.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.resolve(__dirname, "../dist");
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  // SPA fallback — any non-API GET returns index.html so client routing works.
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(distDir, "index.html"));
+  });
+}
 
 export default app;

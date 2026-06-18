@@ -33,6 +33,19 @@ router.post("/", async (req, res) => {
   const order: Order = { ...body, createdAt: Date.now(), status: "pending" };
   await withLock(async () => {
     const db = await readDb();
+    // Snapshot referral commission from the promo definition (server-side, so
+    // the client can't forge it and later promo edits don't affect this order).
+    if (order.promoCode) {
+      const promo = db.pricing.promoCodes.find((p) => p.code === order.promoCode);
+      if (promo?.doctorName) {
+        order.promoDoctorName = promo.doctorName;
+        order.promoDoctorPct = promo.doctorPct ?? 10;
+      }
+      if (promo?.reportName) {
+        order.promoReportName = promo.reportName;
+        order.promoReportPct = promo.reportPct ?? 5;
+      }
+    }
     db.orders.unshift(order);
     if (order.items?.length) deductInventory(db, order.items);
     await writeDb(db);

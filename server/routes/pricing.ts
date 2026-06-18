@@ -4,10 +4,15 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-// Public — raw DB pricing overrides (frontend merges with static defaults)
+// Public — raw DB pricing overrides (frontend merges with static defaults).
+// Commission fields (doctor/report names & percentages) are stripped so they
+// never reach the public order page.
 router.get("/public", async (_req, res) => {
   const db = await readDb();
-  res.json(db.pricing);
+  res.json({
+    ...db.pricing,
+    promoCodes: db.pricing.promoCodes.map((p) => ({ code: p.code, pct: p.pct, label: p.label })),
+  });
 });
 
 // Protected — same data, for manager dashboard
@@ -57,19 +62,43 @@ router.patch("/bundles/:id", requireAuth, async (req, res) => {
 
 // Protected — create or update a promo code
 router.post("/promoCodes", requireAuth, async (req, res) => {
-  const { code, pct, label } = req.body as { code?: string; pct?: number; label?: string };
+  const { code, pct, label, doctorName, doctorPct, reportName, reportPct } = req.body as {
+    code?: string;
+    pct?: number;
+    label?: string;
+    doctorName?: string;
+    doctorPct?: number;
+    reportName?: string;
+    reportPct?: number;
+  };
   if (!code || pct === undefined || typeof pct !== "number" || pct <= 0 || pct > 100 || !label) {
     res.status(400).json({ error: "Missing or invalid fields" });
     return;
   }
-  const normalCode = code.trim().toUpperCase();
+
+  // Normalize the optional commission fields. A commission only exists when a
+  // name is provided; the percentage falls back to a sensible default.
+  const cleanDoctorName = typeof doctorName === "string" ? doctorName.trim() : "";
+  const cleanReportName = typeof reportName === "string" ? reportName.trim() : "";
+  const normPct = (v: unknown, fallback: number) => {
+    const n = Number(v);
+    return !isNaN(n) && n > 0 && n <= 100 ? n : fallback;
+  };
+
+  const entry = {
+    code: code.trim().toUpperCase(),
+    pct,
+    label: label.trim(),
+    ...(cleanDoctorName ? { doctorName: cleanDoctorName, doctorPct: normPct(doctorPct, 10) } : {}),
+    ...(cleanReportName ? { reportName: cleanReportName, reportPct: normPct(reportPct, 5) } : {}),
+  };
+
   const db = await readDb();
-  const existing = db.pricing.promoCodes.find((p) => p.code === normalCode);
-  if (existing) {
-    existing.pct = pct;
-    existing.label = label.trim();
+  const idx = db.pricing.promoCodes.findIndex((p) => p.code === entry.code);
+  if (idx !== -1) {
+    db.pricing.promoCodes[idx] = entry;
   } else {
-    db.pricing.promoCodes.push({ code: normalCode, pct, label: label.trim() });
+    db.pricing.promoCodes.push(entry);
   }
   await writeDb(db);
   res.json({ success: true });

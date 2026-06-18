@@ -20,6 +20,12 @@ export type Order = {
   bundleDiscount: number;
   promoDiscount: number;
   promoCode?: string;
+  // Commission snapshot — copied from the promo code at order time so it
+  // survives later edits/deletion of the promo definition.
+  promoDoctorName?: string;
+  promoDoctorPct?: number;
+  promoReportName?: string;
+  promoReportPct?: number;
   shippingFee: number;
   total: number;
   status: "pending" | "dispatched" | "delivered";
@@ -49,6 +55,12 @@ export type PromoCodeEntry = {
   code: string;
   pct: number;
   label: string;
+  // Optional referral commissions. When a name is set, every order using this
+  // code earns that party the given percentage of the order total.
+  doctorName?: string;
+  doctorPct?: number; // default 10 when doctorName is set
+  reportName?: string;
+  reportPct?: number; // default 5 when reportName is set
 };
 
 export type Pricing = {
