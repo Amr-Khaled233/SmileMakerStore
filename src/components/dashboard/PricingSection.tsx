@@ -46,6 +46,8 @@ export function PricingSection({ token }: { token: string }) {
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<PromoDraft>(EMPTY_PROMO_DRAFT);
   const [promoSaving, setPromoSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
 
@@ -157,12 +159,33 @@ export function PricingSection({ token }: { token: string }) {
     await load();
   };
 
-  // Validate a draft and persist it. Returns false if the draft is invalid.
-  const savePromoDraft = async (draft: PromoDraft): Promise<boolean> => {
+  // Returns a specific reason why the draft can't be saved, or null if valid.
+  const validatePromoDraft = (draft: PromoDraft): string | null => {
+    const missing: string[] = [];
+    if (!draft.code.trim()) missing.push("الكود");
+    if (!draft.label.trim()) missing.push("الوصف");
+    if (missing.length > 0) return `ناقص: ${missing.join(" و ")}`;
+    const pct = Number(draft.pct);
+    if (!draft.pct.trim() || isNaN(pct) || pct <= 0 || pct > 100) {
+      return "اكتب نسبة خصم صحيحة بين 1 و 100";
+    }
+    // Commission percentages must be valid numbers when provided
+    const checkPct = (raw: string) => {
+      const t = raw.trim();
+      if (t === "") return true;
+      const n = Number(t);
+      return !isNaN(n) && n >= 0 && n <= 100;
+    };
+    if (draft.doctorName.trim() && !checkPct(draft.doctorPct)) return "نسبة الدكتور لازم تكون بين 0 و 100";
+    if (draft.reportName.trim() && !checkPct(draft.reportPct)) return "نسبة التقرير الطبي لازم تكون بين 0 و 100";
+    return null;
+  };
+
+  // Persist a (validated) draft.
+  const savePromoDraft = async (draft: PromoDraft): Promise<void> => {
     const code = draft.code.trim().toUpperCase();
     const pct = Number(draft.pct);
     const label = draft.label.trim();
-    if (!code || isNaN(pct) || pct <= 0 || pct > 100 || !label) return false;
     const doctorName = draft.doctorName.trim();
     const reportName = draft.reportName.trim();
     // Respect exactly what the manager types — including 0. The default only
@@ -180,15 +203,19 @@ export function PricingSection({ token }: { token: string }) {
       reportPct: reportName ? parsePct(draft.reportPct, 5) : undefined,
     };
     await api.upsertPromoCode(token, code, pct, label, commission);
-    return true;
   };
 
   const addPromo = async () => {
+    const err = validatePromoDraft(newPromo);
+    if (err) { setAddError(err); return; }
+    setAddError(null);
     setPromoSaving(true);
-    const ok = await savePromoDraft(newPromo);
-    if (ok) {
+    try {
+      await savePromoDraft(newPromo);
       setNewPromo(EMPTY_PROMO_DRAFT);
       await load();
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : "حصل خطأ، حاول تاني");
     }
     setPromoSaving(false);
   };
@@ -196,18 +223,23 @@ export function PricingSection({ token }: { token: string }) {
   const startEdit = (promo: PromoCodeEntry) => {
     setEditingCode(promo.code);
     setEditDraft(promoToDraft(promo));
+    setEditError(null);
   };
 
   const cancelEdit = () => {
     setEditingCode(null);
     setEditDraft(EMPTY_PROMO_DRAFT);
+    setEditError(null);
   };
 
   const saveEdit = async () => {
     if (!editingCode) return;
+    const err = validatePromoDraft(editDraft);
+    if (err) { setEditError(err); return; }
+    setEditError(null);
     setPromoSaving(true);
-    const ok = await savePromoDraft(editDraft);
-    if (ok) {
+    try {
+      await savePromoDraft(editDraft);
       // If the code itself was renamed, remove the old entry.
       const newCode = editDraft.code.trim().toUpperCase();
       if (newCode !== editingCode) {
@@ -215,6 +247,8 @@ export function PricingSection({ token }: { token: string }) {
       }
       cancelEdit();
       await load();
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "حصل خطأ، حاول تاني");
     }
     setPromoSaving(false);
   };
@@ -469,6 +503,11 @@ export function PricingSection({ token }: { token: string }) {
               <div key={promo.code} className="lux-card p-4 ring-2 ring-deep-blue/25">
                 <p className="text-sm font-medium text-ink mb-3">تعديل الكود</p>
                 <PromoFields draft={editDraft} setDraft={setEditDraft} />
+                {editError && (
+                  <p className="mt-3 text-xs text-destructive bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    ⚠️ {editError}
+                  </p>
+                )}
                 <div className="mt-3 flex items-center gap-2">
                   <button onClick={saveEdit} disabled={promoSaving} className="btn-primary text-sm py-2 px-5 disabled:opacity-50">
                     {promoSaving ? "جاري الحفظ..." : "حفظ التعديل"}
@@ -521,6 +560,11 @@ export function PricingSection({ token }: { token: string }) {
         <div className="mt-4 lux-card p-4">
           <p className="text-sm font-medium text-ink mb-3">إضافة كود جديد</p>
           <PromoFields draft={newPromo} setDraft={setNewPromo} />
+          {addError && (
+            <p className="mt-3 text-xs text-destructive bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              ⚠️ {addError}
+            </p>
+          )}
           <button onClick={addPromo} disabled={promoSaving} className="mt-3 btn-ghost text-sm disabled:opacity-50">
             {promoSaving ? "..." : "+ إضافة"}
           </button>
