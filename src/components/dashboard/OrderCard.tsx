@@ -203,11 +203,37 @@ export function OrderCard({
             <div className="flex items-center justify-between pt-2 border-t border-dashed border-border mt-1">
               <span className="text-[11px] text-muted-foreground">
                 {order.bundleDiscount > 0 && `خصم: −${formatEGP(order.bundleDiscount)} · `}
-                {order.promoDiscount > 0 && `كود: −${formatEGP(order.promoDiscount)} · `}
+                {order.promoDiscount > 0 && (
+                  <>
+                    كود
+                    {order.promoCode && <span className="font-mono font-bold text-deep-blue"> {order.promoCode}</span>}
+                    : −{formatEGP(order.promoDiscount)} ·{" "}
+                  </>
+                )}
                 شحن: {formatEGP(order.shippingFee)}
               </span>
               <span className="price-tag text-sm text-gradient">{formatEGP(order.total)} EGP</span>
             </div>
+            {/* Promo code + referral commissions — surfaced for review */}
+            {(order.promoCode || order.promoDoctorName || order.promoReportName) && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {order.promoCode && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-deep-blue/8 text-deep-blue border border-deep-blue/20 rounded-full px-2 py-0.5">
+                    🏷️ <span className="font-mono font-bold" dir="ltr">{order.promoCode}</span>
+                  </span>
+                )}
+                {order.promoDoctorName && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                    🩺 {order.promoDoctorName} · {order.promoDoctorPct ?? 10}%
+                  </span>
+                )}
+                {order.promoReportName && (
+                  <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5">
+                    📋 {order.promoReportName} · {order.promoReportPct ?? 5}%
+                  </span>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -236,7 +262,10 @@ export function OrderCard({
               />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground shrink-0">خصم الكود −</span>
+              <span className="text-muted-foreground shrink-0">
+                خصم الكود
+                {order.promoCode && <span className="font-mono font-bold text-deep-blue" dir="ltr"> {order.promoCode}</span>} −
+              </span>
               <input
                 type="number" min={0} value={editPromoDiscount}
                 onChange={(e) => setEditPromoDiscount(e.target.value)}
