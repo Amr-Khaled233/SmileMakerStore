@@ -15,6 +15,7 @@ const PRODUCT_GALLERIES: Record<string, string[]> = {
 
 export function ProductsSection({ token }: { token: string }) {
   const [subTab, setSubTab] = useState<"products" | "add" | "bundles">("products");
+  const [loaded, setLoaded] = useState(false);
 
   // Dynamic products
   const [products, setProducts] = useState<DynamicProduct[]>([]);
@@ -136,6 +137,7 @@ export function ProductsSection({ token }: { token: string }) {
       }
       setPricingOverrides(ovMap);
     }
+    setLoaded(true);
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -538,8 +540,13 @@ export function ProductsSection({ token }: { token: string }) {
         </div>
       )}
 
+      {/* Initial data still loading — avoid flashing default images before overrides arrive */}
+      {!loaded && subTab !== "add" && (
+        <div className="text-center py-10 text-muted-foreground text-sm">جاري التحميل...</div>
+      )}
+
       {/* ── All products (static + dynamic unified) ── */}
-      {subTab === "products" && (
+      {loaded && subTab === "products" && (
         <section>
           <h3 className="font-display text-xl mb-4">المنتجات ({PRODUCTS.length + products.length})</h3>
           <div className="space-y-6">
@@ -1069,7 +1076,7 @@ export function ProductsSection({ token }: { token: string }) {
       )}
 
       {/* ── Bundles ── */}
-      {subTab === "bundles" && (
+      {loaded && subTab === "bundles" && (
         <div className="space-y-8">
 
         {/* Create new bundle */}
