@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { readDb, writeDb } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { uploadImage, uploadImages } from "../lib/cloudinary.js";
+import { uploadImage, uploadImages, deleteStoredImage } from "../lib/cloudinary.js";
 import type { DynamicProduct, StaticProductOverride, BundleOverride, InventoryEntry } from "../types.js";
 
 const router = Router();
@@ -87,6 +87,8 @@ router.delete("/:id", requireAuth, async (req, res) => {
   db.dynamicProducts.splice(idx, 1);
   db.inventory = db.inventory.filter((e) => e.slug !== product.slug);
   await writeDb(db);
+  // Clean up the product's stored images.
+  await Promise.all((product.images ?? []).map((u) => deleteStoredImage(u).catch(() => {})));
   res.json({ success: true });
 });
 
@@ -186,8 +188,10 @@ router.put("/:id/images/:idx", requireAuth, async (req, res) => {
   if (isNaN(idx) || idx < 0 || idx >= product.images.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
+  const oldUrl = product.images[idx];
   product.images[idx] = url;
   await writeDb(db);
+  if (oldUrl !== url) await deleteStoredImage(oldUrl).catch(() => {});
   res.json({ success: true });
 });
 
@@ -199,8 +203,9 @@ router.delete("/:id/images/:idx", requireAuth, async (req, res) => {
   if (isNaN(idx) || idx < 0 || idx >= product.images.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
-  product.images.splice(idx, 1);
+  const [removed] = product.images.splice(idx, 1);
   await writeDb(db);
+  await deleteStoredImage(removed).catch(() => {});
   res.json({ success: true });
 });
 
@@ -212,8 +217,11 @@ router.put("/static/:slug/images", requireAuth, async (req, res) => {
   if (!Array.isArray(images)) { res.status(400).json({ error: "images must be an array" }); return; }
   const urls = await uploadImages(images.filter(Boolean));
   const db = await readDb();
+  const old = db.productImageOverrides[req.params.slug] ?? [];
   db.productImageOverrides[req.params.slug] = urls;
   await writeDb(db);
+  // Drop any previously-stored images that are no longer referenced.
+  await Promise.all(old.filter((u) => !urls.includes(u)).map((u) => deleteStoredImage(u).catch(() => {})));
   res.json({ success: true });
 });
 
@@ -239,8 +247,9 @@ router.delete("/static/:slug/images/:idx", requireAuth, async (req, res) => {
   if (!imgs || isNaN(idx) || idx < 0 || idx >= imgs.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
-  imgs.splice(idx, 1);
+  const [removed] = imgs.splice(idx, 1);
   await writeDb(db);
+  await deleteStoredImage(removed).catch(() => {});
   res.json({ success: true });
 });
 
@@ -271,16 +280,20 @@ router.put("/static/:slug/images/:idx", requireAuth, async (req, res) => {
   if (!imgs || isNaN(idx) || idx < 0 || idx >= imgs.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
+  const oldUrl = imgs[idx];
   imgs[idx] = url;
   await writeDb(db);
+  if (oldUrl !== url) await deleteStoredImage(oldUrl).catch(() => {});
   res.json({ success: true });
 });
 
 // Clear all image overrides for a static product (restore originals)
 router.delete("/static/:slug/images", requireAuth, async (req, res) => {
   const db = await readDb();
+  const removed = db.productImageOverrides[req.params.slug] ?? [];
   delete db.productImageOverrides[req.params.slug];
   await writeDb(db);
+  await Promise.all(removed.map((u) => deleteStoredImage(u).catch(() => {})));
   res.json({ success: true });
 });
 

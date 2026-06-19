@@ -16,6 +16,7 @@ import bundlesRouter from "./routes/bundles.js";
 import reviewsRouter from "./routes/reviews.js";
 import carouselRouter from "./routes/carousel.js";
 import commissionsRouter from "./routes/commissions.js";
+import imagesRouter from "./routes/images.js";
 
 const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
   .split(",")
@@ -48,7 +49,11 @@ app.use(
 );
 app.use(express.json({ limit: "15mb" }));
 
-// Broad rate-limit safety net across the whole API.
+// Image serving — registered before the rate limiter so a page loading many
+// images from the same IP doesn't get throttled. (They're cached anyway.)
+app.use("/api/images", imagesRouter);
+
+// Broad rate-limit safety net across the rest of the API.
 app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRouter);

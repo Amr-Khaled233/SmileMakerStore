@@ -25,15 +25,35 @@ const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, fre
 let _client: MongoClient | null = null;
 let _db: Db | null = null;
 
-async function getCol() {
+async function getDb(): Promise<Db> {
   if (!_db) {
     const uri = process.env.MONGODB_URI;
     if (!uri) throw new Error("MONGODB_URI environment variable is not set");
-    _client = new MongoClient(uri);
+    // promoteBuffers: binary fields (image data) come back as Node Buffers.
+    _client = new MongoClient(uri, { promoteBuffers: true });
     await _client.connect();
     _db = _client.db("smilemaker");
   }
-  return _db.collection<DbDataRaw>("state");
+  return _db;
+}
+
+async function getCol() {
+  const db = await getDb();
+  return db.collection<DbDataRaw>("state");
+}
+
+// One document per image, stored in its own collection — avoids the 16MB
+// single-document limit that inline base64 would hit.
+export type ImageDoc = {
+  _id: string;
+  data: Buffer;
+  contentType: string;
+  createdAt: number;
+};
+
+export async function getImagesCol() {
+  const db = await getDb();
+  return db.collection<ImageDoc>("images");
 }
 
 export async function readDb(): Promise<DbData> {

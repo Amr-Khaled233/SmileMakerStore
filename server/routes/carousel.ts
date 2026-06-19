@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { readDb, writeDb } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { uploadImage } from "../lib/cloudinary.js";
+import { uploadImage, deleteStoredImage } from "../lib/cloudinary.js";
 
 const router = Router();
 
@@ -28,8 +28,9 @@ router.delete("/:idx", requireAuth, async (req, res) => {
   if (isNaN(idx) || idx < 0 || idx >= db.carouselImages.length) {
     res.status(400).json({ error: "Invalid index" }); return;
   }
-  db.carouselImages.splice(idx, 1);
+  const [removed] = db.carouselImages.splice(idx, 1);
   await writeDb(db);
+  await deleteStoredImage(removed).catch(() => {});
   res.json({ success: true });
 });
 

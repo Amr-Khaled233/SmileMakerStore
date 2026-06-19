@@ -12,7 +12,7 @@
 ## 0) متطلبات قبل ما تبدأ
 - VPS من Hostinger (خطة KVM 1 أو أعلى) بنظام **Ubuntu 22.04/24.04**.
 - دومين موجّه لـ IP السيرفر (A record لـ `yourdomain.com` و `www`).
-- (اختياري لكن مهم للسرعة) حساب **Cloudinary** لصور المنتجات.
+- الصور بتتخزن في MongoDB تلقائياً (مفيش حاجة تظبطها). Cloudinary اختياري تماماً.
 
 ---
 
@@ -39,16 +39,14 @@ cd SmileMakerStore
 cp .env.example .env
 nano .env
 ```
-املأ القيم دي (الباقي سيبه زي ما هو):
+املأ القيم دي بس (الباقي سيبه زي ما هو):
 ```
 JWT_SECRET=<شغّل: openssl rand -hex 32 وحط الناتج>
 MANAGER_PASSWORD=<باسورد قوي للوحة التحكم>
 FRONTEND_URL=https://yourdomain.com
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
 ```
-> ملاحظة: `MONGODB_URI` مش محتاج تغيّره — docker-compose بيوصّل التطبيق بقاعدة البيانات تلقائياً.
+> ملاحظة 1: `MONGODB_URI` مش محتاج تغيّره — docker-compose بيوصّل التطبيق بقاعدة البيانات تلقائياً.
+> ملاحظة 2: الصور بتتخزن في MongoDB، فسيب سطور `CLOUDINARY_*` متعلّمة كتعليق (#) أو فاضية.
 
 ## 4) شغّل التطبيق
 ```bash
