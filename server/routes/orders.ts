@@ -1,9 +1,30 @@
 import { Router } from "express";
 import { readDb, writeDb, withLock } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { orderLimiter } from "../middleware/rateLimit.js";
 import type { Order } from "../types.js";
 
 const router = Router();
+
+const MAX_ITEMS = 50; // a real cart never has more lines than this
+const MAX_QTY = 999; // per-line quantity cap
+
+// Validate a public order payload to block malformed / abusive submissions.
+// Returns an error message, or null if the order looks sane.
+function validateOrderBody(body: Omit<Order, "createdAt" | "status">): string | null {
+  if (!body.id || typeof body.id !== "string" || body.id.length > 40) return "Invalid id";
+  if (!body.name || typeof body.name !== "string" || body.name.length > 100) return "Invalid name";
+  if (!body.phone || typeof body.phone !== "string" || body.phone.length > 20) return "Invalid phone";
+  if (!Array.isArray(body.items) || body.items.length === 0) return "No items";
+  if (body.items.length > MAX_ITEMS) return "Too many items";
+  for (const it of body.items) {
+    if (!it || typeof it.slug !== "string" || typeof it.title !== "string") return "Invalid item";
+    if (typeof it.qty !== "number" || !Number.isFinite(it.qty) || it.qty < 1 || it.qty > MAX_QTY) return "Invalid quantity";
+    if (typeof it.lineTotal !== "number" || !Number.isFinite(it.lineTotal) || it.lineTotal < 0) return "Invalid line total";
+  }
+  if (typeof body.total !== "number" || !Number.isFinite(body.total) || body.total < 0 || body.total > 10_000_000) return "Invalid total";
+  return null;
+}
 
 function deductInventory(
   db: Awaited<ReturnType<typeof readDb>>,
@@ -23,16 +44,20 @@ function deductInventory(
   }
 }
 
-// Public — create order from checkout
-router.post("/", async (req, res) => {
+// Public — create order from checkout (rate-limited + validated)
+router.post("/", orderLimiter, async (req, res) => {
   const body = req.body as Omit<Order, "createdAt" | "status">;
-  if (!body.id || !body.name || !body.phone) {
-    res.status(400).json({ error: "Missing required fields" });
+  const invalid = validateOrderBody(body);
+  if (invalid) {
+    res.status(400).json({ error: invalid });
     return;
   }
   const order: Order = { ...body, createdAt: Date.now(), status: "pending" };
+  let duplicate = false;
   await withLock(async () => {
     const db = await readDb();
+    // Reject duplicate IDs (double-submit / replay).
+    if (db.orders.some((o) => o.id === order.id)) { duplicate = true; return; }
     // Snapshot referral commission from the promo definition (server-side, so
     // the client can't forge it and later promo edits don't affect this order).
     if (order.promoCode) {
@@ -50,6 +75,7 @@ router.post("/", async (req, res) => {
     if (order.items?.length) deductInventory(db, order.items);
     await writeDb(db);
   });
+  if (duplicate) { res.status(409).json({ error: "Order already exists" }); return; }
   res.json({ success: true, id: order.id });
 });
 

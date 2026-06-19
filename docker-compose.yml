@@ -1,0 +1,34 @@
+# Single-VPS stack: the app + its own MongoDB, fully self-contained.
+# Usage:
+#   1) cp .env.example .env   (fill in JWT_SECRET, MANAGER_PASSWORD, Cloudinary, domain)
+#   2) docker compose up -d --build
+# nginx on the host proxies https://yourdomain.com  ->  127.0.0.1:3001
+
+services:
+  mongo:
+    image: mongo:7
+    restart: always
+    volumes:
+      - mongo-data:/data/db
+    # Not published to the host — only reachable by the app container.
+    expose:
+      - "27017"
+
+  app:
+    build: .
+    restart: always
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    environment:
+      # Talk to the mongo service over the internal Docker network.
+      MONGODB_URI: mongodb://mongo:27017/smilemaker
+      NODE_ENV: production
+      PORT: "3001"
+    # Bind to localhost only; nginx terminates TLS and forwards here.
+    ports:
+      - "127.0.0.1:3001:3001"
+
+volumes:
+  mongo-data:

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import { loginLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
 
-router.post("/login", (req, res) => {
+router.post("/login", loginLimiter, (req, res) => {
   const { password } = req.body as { password?: string };
   if (!password || password !== process.env.MANAGER_PASSWORD) {
     res.status(401).json({ error: "كلمة المرور غلط" });

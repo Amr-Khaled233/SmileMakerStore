@@ -1,8 +1,11 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
+import helmet from "helmet";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { apiLimiter } from "./middleware/rateLimit.js";
 import authRouter from "./routes/auth.js";
 import ordersRouter from "./routes/orders.js";
 import inventoryRouter from "./routes/inventory.js";
@@ -21,6 +24,16 @@ const ALLOWED = (process.env.FRONTEND_URL ?? "http://localhost:5173")
 
 const app = express();
 
+// Behind nginx — trust the first proxy so rate-limiting sees real client IPs.
+app.set("trust proxy", 1);
+
+// Security headers. CSP is disabled because the SPA + Cloudinary images need a
+// permissive policy; the other protections (HSTS, no-sniff, etc.) stay on.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// Gzip responses (HTML/JS/CSS/JSON) for faster page loads.
+app.use(compression());
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -34,6 +47,9 @@ app.use(
   })
 );
 app.use(express.json({ limit: "15mb" }));
+
+// Broad rate-limit safety net across the whole API.
+app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRouter);
 app.use("/api/orders", ordersRouter);
@@ -53,6 +69,12 @@ app.use("/api/commissions", commissionsRouter);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, "../dist");
 if (fs.existsSync(distDir)) {
+  // Hashed build assets never change → cache them aggressively for fast repeat visits.
+  app.use(
+    "/assets",
+    express.static(path.join(distDir, "assets"), { immutable: true, maxAge: "1y" })
+  );
+  // Everything else (favicon, images, etc.)
   app.use(express.static(distDir));
   // SPA fallback — any non-API GET returns index.html so client routing works.
   app.use((req, res, next) => {

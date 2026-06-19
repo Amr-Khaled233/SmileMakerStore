@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.env
+*.log
+.vscode
+.idea
+deploy
+DEPLOY.md
+**/*.md
