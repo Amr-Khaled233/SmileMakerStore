@@ -1,8 +1,10 @@
-# Single-VPS stack: the app + its own MongoDB, fully self-contained.
-# Usage:
-#   1) cp .env.example .env   (fill in JWT_SECRET, MANAGER_PASSWORD, Cloudinary, domain)
-#   2) docker compose up -d --build
-# nginx on the host proxies https://yourdomain.com  ->  127.0.0.1:3001
+# Frontend + backend as separate containers, behind the VPS's existing Traefik
+# instance (shared across other sites). Usage:
+#   1) cp .env.example .env   (fill in JWT_SECRET, MANAGER_PASSWORD, FRONTEND_URL)
+#   2) Confirm `traefik-public` below matches the real network name of your
+#      Traefik stack (docker network ls), and that the Host() rules match your
+#      real domains.
+#   3) docker compose up -d --build
 
 services:
   mongo:
@@ -10,12 +12,13 @@ services:
     restart: always
     volumes:
       - mongo-data:/data/db
-    # Not published to the host — only reachable by the app container.
-    expose:
-      - "27017"
+    networks:
+      - internal
 
-  app:
-    build: .
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     restart: always
     depends_on:
       - mongo
@@ -26,9 +29,36 @@ services:
       MONGODB_URI: mongodb://mongo:27017/smilemaker
       NODE_ENV: production
       PORT: "3001"
-    # Bind to localhost only; nginx terminates TLS and forwards here.
-    ports:
-      - "127.0.0.1:3001:3001"
+    networks:
+      - internal
+      - traefik-public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.smilemaker-api.rule: "Host(`api.yourdomain.com`)"
+      traefik.http.routers.smilemaker-api.entrypoints: "websecure"
+      traefik.http.routers.smilemaker-api.tls.certresolver: "letsencrypt"
+      traefik.http.services.smilemaker-api.loadbalancer.server.port: "3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE: https://api.yourdomain.com
+    restart: always
+    networks:
+      - traefik-public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.smilemaker-web.rule: "Host(`yourdomain.com`) || Host(`www.yourdomain.com`)"
+      traefik.http.routers.smilemaker-web.entrypoints: "websecure"
+      traefik.http.routers.smilemaker-web.tls.certresolver: "letsencrypt"
+      traefik.http.services.smilemaker-web.loadbalancer.server.port: "80"
+
+networks:
+  internal:
+  traefik-public:
+    external: true
 
 volumes:
   mongo-data:
