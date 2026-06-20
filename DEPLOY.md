@@ -10,42 +10,29 @@
                                                └────> backend  (Docker) ──> mongo (Docker)
 ```
 
-- `yourdomain.com` (و `www`) → كونتينر `frontend`
-- `api.yourdomain.com` → كونتينر `backend`
+- `smile.alisoliman.net` → كونتينر `frontend`
+- `backend-smile.alisoliman.net` → كونتينر `backend`
+
+نفس الـ Traefik وشبكة `traefik_public` اللي مستخدمة من مشاريع تانية على نفس
+السيرفر (زي `medaya-frontend`) — مفيش حاجة جديدة تتظبط في Traefik نفسه.
 
 ---
 
 ## 0) متطلبات قبل ما تبدأ
-- VPS فيه **Traefik شغّال بالفعل** كـ reverse proxy مشترك (لو لسه مش متأكد، شوف خطوة 1).
-- دومين موجّه لـ IP السيرفر: A record لـ `yourdomain.com`، `www`، و `api.yourdomain.com`.
+- Traefik شغّال بالفعل على السيرفر وعلى شبكة `traefik_public` (نفس اللي شغّالة عليه مشاريع تانية).
+- DNS: A records لـ `smile.alisoliman.net` و `backend-smile.alisoliman.net` موجّهة لـ IP السيرفر.
 - الصور بتتخزن في MongoDB تلقائياً (مفيش حاجة تظبطها).
 
 ---
 
-## 1) اتأكد من شبكة Traefik
-Traefik بيوجّه بس للكونتينرات اللي على نفس الـ Docker network بتاعته. شوف اسمها:
-```bash
-docker network ls
-```
-دور على شبكة الـ Traefik (غالباً اسمها زي `traefik-public` أو `traefik_default`).
-لو الاسم مختلف عن `traefik-public`، عدّل `docker-compose.yml`:
-```yaml
-networks:
-  traefik-public:
-    external: true
-    name: <الاسم-الحقيقي-بتاع-شبكة-Traefik>
-```
-وكمان اتأكد إن الـ certresolver في الـ labels (`letsencrypt`) مطابق لاسم الـ resolver
-المُعرّف في إعدادات Traefik بتاعتك.
-
-## 2) جيب المشروع
+## 1) جيب المشروع
 ```bash
 cd /var/www
 git clone https://github.com/Amr-Khaled233/SmileMakerStore.git
 cd SmileMakerStore
 ```
 
-## 3) اعمل ملف الإعدادات `.env`
+## 2) اعمل ملف الإعدادات `.env`
 ```bash
 cp .env.example .env
 nano .env
@@ -54,23 +41,20 @@ nano .env
 ```
 JWT_SECRET=<شغّل: openssl rand -hex 32 وحط الناتج>
 MANAGER_PASSWORD=<باسورد قوي للوحة التحكم>
-FRONTEND_URL=https://yourdomain.com,https://www.yourdomain.com
+FRONTEND_URL=https://smile.alisoliman.net
 ```
 > ملاحظة 1: `MONGODB_URI` مش محتاج تغيّره — docker-compose بيوصّل التطبيق بقاعدة البيانات تلقائياً.
 > ملاحظة 2: الصور بتتخزن في MongoDB، فسيب سطور `CLOUDINARY_*` متعلّمة كتعليق (#) أو فاضية.
+> ملاحظة 3: الدومينات (`smile.alisoliman.net` و `backend-smile.alisoliman.net`) متظبطة بالفعل في `docker-compose.yml` — مفيش حاجة تعدّلها هناك.
 
-## 4) عدّل الدومينات في `docker-compose.yml`
-استبدل `yourdomain.com` و `api.yourdomain.com` في labels بتاعة `frontend` و `backend`
-بالدومين الحقيقي بتاعك (4 مواضع: 2 في كل service — الـ `rule` والـ `VITE_API_BASE`).
-
-## 5) شغّل التطبيق
+## 3) شغّل التطبيق
 ```bash
 docker compose up -d --build
 docker compose ps           # تتأكد إن frontend و backend و mongo شغّالين
 docker compose logs -f backend
 ```
 خلاص — Traefik هيكتشف الكونتينرز تلقائياً ويعمل لهم HTTPS. افتح
-`https://yourdomain.com` ولوحة التحكم على `https://yourdomain.com/dashboard`.
+`https://smile.alisoliman.net` ولوحة التحكم على `https://smile.alisoliman.net/dashboard`.
 
 > لو الموقع مش ظاهر، شوف لوج Traefik نفسه (`docker logs <traefik-container>`)
 > اتأكد إن الـ router ظاهر في الـ dashboard بتاعته.
