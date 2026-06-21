@@ -1,0 +1,93 @@
+# Self-contained stack for YOUR OWN fresh VPS (no pre-existing Traefik).
+# One domain: site at /  and API at /api  → same origin, no CORS, one DNS record.
+#
+# Usage:
+#   1) cp .env.example .env
+#      set DOMAIN, ACME_EMAIL, JWT_SECRET, MANAGER_PASSWORD, FRONTEND_URL
+#   2) docker compose -f docker-compose.vps.yml up -d --build
+#
+# DNS: one A record  DOMAIN -> your VPS IP.
+
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Redirect all HTTP to HTTPS
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      # Free Let's Encrypt certificates via HTTP challenge
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - web
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file: [.env]
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/smilemaker
+    networks:
+      - web
+      - internal
+    labels:
+      - "traefik.enable=true"
+      # API on the same domain under /api — higher priority than the site catch-all.
+      - "traefik.http.routers.sm-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.sm-api.entrypoints=websecure"
+      - "traefik.http.routers.sm-api.tls.certresolver=le"
+      - "traefik.http.routers.sm-api.priority=10"
+      - "traefik.http.services.sm-api.loadbalancer.server.port=3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # Same-origin API path — no second subdomain needed.
+        - VITE_API_BASE=/api
+    restart: unless-stopped
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sm-web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.sm-web.entrypoints=websecure"
+      - "traefik.http.routers.sm-web.tls.certresolver=le"
+      - "traefik.http.routers.sm-web.priority=1"
+      - "traefik.http.services.sm-web.loadbalancer.server.port=80"
+
+networks:
+  web:
+  internal:
+
+volumes:
+  mongo-data:
+  traefik-letsencrypt:
