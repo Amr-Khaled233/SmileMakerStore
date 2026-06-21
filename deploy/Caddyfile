@@ -1,0 +1,17 @@
+# Caddy reverse proxy — automatic HTTPS for one domain.
+# Site served at / (frontend), API at /api (backend), same origin.
+# DOMAIN and ACME_EMAIL come from the environment (see docker-compose.vps.yml).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	# API → backend (path kept as-is; the server mounts everything under /api)
+	handle /api/* {
+		reverse_proxy backend:3001
+	}
+	# Everything else → frontend (static SPA)
+	handle {
+		reverse_proxy frontend:80
+	}
+}
