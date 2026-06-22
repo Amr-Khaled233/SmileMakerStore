@@ -936,7 +936,6 @@ function OrderPage() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   maxLength={100}
-                  placeholder={t("order.namePlaceholder")}
                   className="lux-input"
                 />
               </Field>
@@ -949,7 +948,6 @@ function OrderPage() {
                     autoComplete="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="01050852966"
                     dir="ltr"
                     className="lux-input"
                     maxLength={20}
@@ -963,7 +961,6 @@ function OrderPage() {
                     autoComplete="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="you@example.com"
                     className="lux-input"
                     maxLength={255}
                     dir="ltr"
@@ -994,7 +991,6 @@ function OrderPage() {
                   autoComplete="address-level2"
                   value={form.city}
                   onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  placeholder={t("order.cityPlaceholder")}
                   maxLength={100}
                   className="lux-input"
                 />
@@ -1007,7 +1003,6 @@ function OrderPage() {
                   autoComplete="street-address"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  placeholder={t("order.addressPlaceholder")}
                   maxLength={300}
                   className="lux-input"
                 />
@@ -1021,7 +1016,6 @@ function OrderPage() {
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={3}
                   maxLength={500}
-                  placeholder={t("order.notesPlaceholder")}
                   className="lux-input resize-none"
                 />
               </Field>
