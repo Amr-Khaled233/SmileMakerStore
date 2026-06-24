@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
 import { ArrowRight, Star, Sparkles } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
+import { useCart } from "@/lib/cart";
 import { useState, useEffect } from "react";
-import { api, type Pricing, type DynamicProduct, type DynamicBundle } from "@/lib/api";
+import { api, type Pricing, type DynamicProduct, type DynamicBundle, type PublicInventoryStatus } from "@/lib/api";
 
 export const Route = createFileRoute("/products/")({
   component: ProductsPage,
@@ -12,11 +13,14 @@ export const Route = createFileRoute("/products/")({
 
 function ProductsPage() {
   const { t, tl, lang } = useT();
+  const nav = useNavigate();
+  const cart = useCart();
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
+  const [inventory, setInventory] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} });
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
     Promise.all([
@@ -24,15 +28,20 @@ function ProductsPage() {
       api.getDynamicProducts().catch((): DynamicProduct[] => []),
       api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
       api.getDynamicBundles().catch((): DynamicBundle[] => []),
-    ]).then(([pricingData, dynProds, meta, dynBundles]) => {
+      api.getInventoryStatus().catch((): PublicInventoryStatus => ({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} })),
+    ]).then(([pricingData, dynProds, meta, dynBundles, inv]) => {
       setPricing(pricingData);
       setDynamicProducts(dynProds);
       setHiddenSlugs(meta.hidden);
       setImageOverrides(meta.imageOverrides ?? {});
       setUserBundles(dynBundles);
+      setInventory(inv);
       setDataReady(true);
     });
   }, []);
+
+  // A bundle can't be ordered if any of its products is fully out of stock.
+  const bundleOos = (itemSlugs: string[]) => itemSlugs.some((s) => inventory.outOfStock.includes(s));
 
   const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
@@ -79,9 +88,9 @@ function ProductsPage() {
                 to={`/products/${p.slug}` as "/products/h2o-water-flosser"}
                 className="lux-card overflow-hidden group block"
               >
-                <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+                <div className="aspect-4/3 bg-white flex items-center justify-center overflow-hidden relative">
                   <img src={p.image} alt={p.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
-                  {p.badge && <div className="absolute top-4 start-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{tl(p.badge)}</div>}
+                  {p.badge && <div className="absolute top-4 inset-s-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{tl(p.badge)}</div>}
                 </div>
                 <div className="p-7">
                   <div className="flex items-center justify-between gap-3">
@@ -112,7 +121,7 @@ function ProductsPage() {
               params={{ slug: p.slug }}
               className="lux-card overflow-hidden group block"
             >
-              <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+              <div className="aspect-4/3 bg-white flex items-center justify-center overflow-hidden relative">
                 {p.images[0] ? (
                   <img src={p.images[0]} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 ) : (
@@ -161,9 +170,13 @@ function ProductsPage() {
               const total = items.reduce((s, i) => s + effectivePrice(i as Parameters<typeof effectivePrice>[0]), 0);
               const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
               const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
+              const oos = bundleOos(b.items);
               return (
-                <div key={b.id} className="lux-card p-7 flex flex-col">
-                  <h3 className="text-2xl font-display">{tl(b.title)}</h3>
+                <div key={b.id} className={`lux-card p-7 flex flex-col ${oos ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-2xl font-display">{tl(b.title)}</h3>
+                    {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                  </div>
                   <p className="mt-2 text-sm text-muted-foreground">{tl(b.tagline)}</p>
 
                   <div className="mt-5 flex items-center gap-3">
@@ -186,9 +199,13 @@ function ProductsPage() {
                     <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
-                  <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
-                    {t("btn.orderBundle")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-                  </Link>
+                  {oos ? (
+                    <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
+                  ) : (
+                    <button onClick={() => { cart.addBundle(b.id); nav({ to: "/cart" }); }} className="btn-primary mt-6 text-sm w-fit">
+                      {t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -200,9 +217,13 @@ function ProductsPage() {
               const priceOv = pricing.bundles.find((x) => x.id === b.id);
               const discounted = priceOv?.price ?? b.price;
               const savingsPct = total > 0 && total > discounted ? Math.round(((total - discounted) / total) * 100) : 0;
+              const oos = bundleOos(b.items);
               return (
-                <div key={b.id} className="lux-card p-7 flex flex-col">
-                  <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
+                <div key={b.id} className={`lux-card p-7 flex flex-col ${oos ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
+                    {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                  </div>
                   {(b.taglineEn || b.taglineAr) && (
                     <p className="mt-2 text-sm text-muted-foreground">{lang === "ar" ? b.taglineAr : b.taglineEn}</p>
                   )}
@@ -231,9 +252,13 @@ function ProductsPage() {
                     <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
-                  <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
-                    {t("btn.orderBundle")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-                  </Link>
+                  {oos ? (
+                    <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
+                  ) : (
+                    <button onClick={() => { cart.addBundle(b.id); nav({ to: "/cart" }); }} className="btn-primary mt-6 text-sm w-fit">
+                      {t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                    </button>
+                  )}
                 </div>
               );
             })}

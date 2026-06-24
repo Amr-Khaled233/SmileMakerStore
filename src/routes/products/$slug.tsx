@@ -5,7 +5,8 @@ import { PRODUCTS, PRODUCT_DETAILS, formatEGP, type ProductSlug, type ProductDet
 import { api, type DynamicProduct, type Pricing } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { Star, ShoppingCart, Check, ArrowRight } from "lucide-react";
+import { Star, Check, ArrowRight } from "lucide-react";
+import { PurchasePanel } from "@/components/site/PurchasePanel";
 
 export const Route = createFileRoute("/products/$slug")({
   component: ProductPage,
@@ -85,7 +86,6 @@ function StaticProductPage({ staticProduct, staticDetails }: { staticProduct: (t
 function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" }) {
   const [product, setProduct] = useState<DynamicProduct | null | "loading">("loading");
   const [activeImg, setActiveImg] = useState<string>("");
-  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     api.getDynamicProducts().then((list) => {
@@ -172,14 +172,7 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
               </ul>
             )}
 
-            {product.outOfStock ? (
-              <div className="btn-ghost opacity-50 cursor-not-allowed w-full justify-center">نفد من المخزون</div>
-            ) : (
-              <Link to="/order" onClick={() => { setAdded(true); setTimeout(() => setAdded(false), 2000); }}
-                className="btn-primary w-full justify-center text-base">
-                {added ? <><Check className="h-5 w-5" /> تم الإضافة</> : <><ShoppingCart className="h-5 w-5" /> اطلب الآن</>}
-              </Link>
-            )}
+            <PurchasePanel slug={product.slug} />
           </div>
         </div>
       </section>

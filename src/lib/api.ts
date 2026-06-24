@@ -6,6 +6,7 @@ export type PublicInventoryStatus = {
   outOfStock: string[];
   outOfStockColors: Record<string, string[]>;
   colorQty: Record<string, Record<string, number>>;
+  qty: Record<string, number>; // total available units per product slug
 };
 
 export type CommissionLine = {

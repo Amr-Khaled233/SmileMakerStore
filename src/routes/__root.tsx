@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
 import { LanguageProvider } from "@/lib/i18n";
+import { CartProvider } from "@/lib/cart";
 
 function NotFoundComponent() {
   return (
@@ -31,7 +32,9 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <LanguageProvider>
-      <Outlet />
+      <CartProvider>
+        <Outlet />
+      </CartProvider>
     </LanguageProvider>
   );
 }

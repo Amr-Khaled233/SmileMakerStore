@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Star, ShoppingCart, Zap, ShieldCheck, Sparkles, Check } from "lucide-react";
+import { Star, Zap, ShieldCheck, Sparkles, Check } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { useT, type L } from "@/lib/i18n";
 import { formatEGP, PRODUCTS, PRODUCT_DETAILS, type ProductSlug } from "@/data/products";
 import { api, type Pricing, type StaticProductOverride } from "@/lib/api";
+import { PurchasePanel } from "@/components/site/PurchasePanel";
 
 export type ProductRelated = {
   slug: string;
@@ -142,8 +143,8 @@ export function ProductDetail(p: ProductDetailProps) {
               ))}
             </ul>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/order" className="btn-primary"><ShoppingCart className="h-4 w-4" /> {t("btn.orderNow")}</Link>
+            <div className="mt-8 space-y-4">
+              <PurchasePanel slug={p.slug} />
               <Link to="/products" className="btn-ghost">{t("btn.browseAll")}</Link>
             </div>
           </div>

@@ -109,6 +109,27 @@ export const DICT = {
   "order.cityPlaceholder": { en: "Cairo", ar: "القاهرة" },
   "order.bundleApplied": { en: "Bundle applied", ar: "تم تطبيق الباقة" },
 
+  // Cart & checkout
+  "nav.cart": { en: "Cart", ar: "السلة" },
+  "btn.addToCart": { en: "Add to cart", ar: "أضف للسلة" },
+  "btn.buyNow": { en: "Buy now", ar: "اشترِ الآن" },
+  "btn.added": { en: "Added", ar: "تمت الإضافة" },
+  "cart.title": { en: "Your cart", ar: "سلة المشتريات" },
+  "cart.empty": { en: "Your cart is empty.", ar: "سلتك فارغة." },
+  "cart.emptyCta": { en: "Browse products", ar: "تصفّح المنتجات" },
+  "cart.checkout": { en: "Proceed to checkout", ar: "إتمام الطلب" },
+  "cart.continueShopping": { en: "Continue shopping", ar: "مواصلة التسوق" },
+  "cart.remove": { en: "Remove", ar: "حذف" },
+  "cart.color": { en: "Color", ar: "اللون" },
+  "cart.qty": { en: "Quantity", ar: "الكمية" },
+  "cart.oos": { en: "Out of stock", ar: "نفد المخزون" },
+  "cart.onlyLeft": { en: "Only {n} left", ar: "متاح {n} فقط" },
+  "cart.chooseColors": { en: "Choose a color for each product", ar: "اختر لون لكل منتج" },
+  "cart.bundle": { en: "Bundle", ar: "باقة" },
+  "checkout.title": { en: "Checkout", ar: "إتمام الطلب" },
+  "checkout.backToCart": { en: "Back to cart", ar: "العودة للسلة" },
+  "checkout.fixErrors": { en: "Please fix the following before ordering:", ar: "صحّح الآتي قبل إتمام الطلب:" },
+
   // Hero (home)
   "home.heroBadge": { en: "Beauty Devices · Oral Care · Confidence", ar: "أجهزة جمال · العناية بالفم · ثقة" },
   "home.heroTitle.a": { en: "Advanced beauty devices for a", ar: "أجهزة جمال متطورة لأجل" },
