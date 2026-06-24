@@ -18,6 +18,7 @@ function ProductsPage() {
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [hiddenBundleIds, setHiddenBundleIds] = useState<string[]>([]);
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   const [inventory, setInventory] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} });
@@ -26,13 +27,14 @@ function ProductsPage() {
     Promise.all([
       api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
       api.getDynamicProducts().catch((): DynamicProduct[] => []),
-      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], bundleHidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
       api.getDynamicBundles().catch((): DynamicBundle[] => []),
       api.getInventoryStatus().catch((): PublicInventoryStatus => ({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} })),
     ]).then(([pricingData, dynProds, meta, dynBundles, inv]) => {
       setPricing(pricingData);
       setDynamicProducts(dynProds);
       setHiddenSlugs(meta.hidden);
+      setHiddenBundleIds(meta.bundleHidden ?? []);
       setImageOverrides(meta.imageOverrides ?? {});
       setUserBundles(dynBundles);
       setInventory(inv);
@@ -53,7 +55,7 @@ function ProductsPage() {
       image: imgs?.[0] ?? p.image,
     };
   });
-  const bundles = BUNDLES.map((b) => {
+  const bundles = BUNDLES.filter((b) => !hiddenBundleIds.includes(b.id)).map((b) => {
     const ov = pricing.bundles.find((x) => x.id === b.id);
     return { ...b, fixedPrice: ov?.price };
   });

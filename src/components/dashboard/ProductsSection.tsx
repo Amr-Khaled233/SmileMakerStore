@@ -81,6 +81,7 @@ export function ProductsSection({ token }: { token: string }) {
   // Static products
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [hiddenBundleIds, setHiddenBundleIds] = useState<string[]>([]);
   const [staticUploadingFor, setStaticUploadingFor] = useState<string | null>(null);
   const [staticSettingPrimary, setStaticSettingPrimary] = useState<string | null>(null);
   const staticReplacingIdx = useRef<{ slug: string; idx: number } | null>(null);
@@ -120,13 +121,14 @@ export function ProductsSection({ token }: { token: string }) {
   const load = useCallback(async () => {
     const [data, meta, pricing, dynBundles] = await Promise.all([
       api.getDynamicProducts().catch(() => [] as DynamicProduct[]),
-      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], bundleHidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
       api.getPricing(token).catch(() => null as Pricing | null),
       api.getDynamicBundles().catch(() => [] as DynamicBundle[]),
     ]);
     setProducts(data);
     setImageOverrides(meta.imageOverrides);
     setHiddenSlugs(meta.hidden);
+    setHiddenBundleIds(meta.bundleHidden ?? []);
     setStaticOverrides(meta.staticOverrides ?? {});
     setBundleOverrides(meta.bundleOverrides ?? {});
     setUserBundles(dynBundles);
@@ -284,6 +286,15 @@ export function ProductsSection({ token }: { token: string }) {
     setTogglingHidden(slug);
     await api.setProductVisibility(token, slug, !currentlyHidden).catch(() => {});
     setHiddenSlugs((prev) => currentlyHidden ? prev.filter((s) => s !== slug) : [...prev, slug]);
+    setTogglingHidden(null);
+  };
+  // Hide / restore a static (hardcoded) bundle — it can't be truly deleted, so
+  // hiding removes it from the store while keeping it restorable.
+  const toggleBundleHidden = async (id: string, currentlyHidden: boolean) => {
+    if (!currentlyHidden && !window.confirm("إخفاء الباقة من المتجر؟ تقدر ترجّعها في أي وقت.")) return;
+    setTogglingHidden(id);
+    await api.setBundleVisibility(token, id, !currentlyHidden).catch(() => {});
+    setHiddenBundleIds((prev) => currentlyHidden ? prev.filter((x) => x !== id) : [...prev, id]);
     setTogglingHidden(null);
   };
 
@@ -1248,11 +1259,15 @@ export function ProductsSection({ token }: { token: string }) {
               const currentItems = ov.items ?? b.items;
               const currentDiscount = ov.discountPct ?? b.discountPct;
               const isEditing = editingBundleId === b.id;
+              const isHidden = hiddenBundleIds.includes(b.id);
               return (
-                <div key={b.id} className="lux-card p-5">
+                <div key={b.id} className={`lux-card p-5 ${isHidden ? "opacity-60" : ""}`}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
-                      <p className="font-display text-lg">{currentTitle}</p>
+                      <p className="font-display text-lg flex items-center gap-2">
+                        {currentTitle}
+                        {isHidden && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">مخفية</span>}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{ov.taglineAr || b.tagline.ar}</p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-xs text-ink">خصم {currentDiscount}%</span>
@@ -1267,10 +1282,16 @@ export function ProductsSection({ token }: { token: string }) {
                         })}
                       </div>
                     </div>
-                    <button onClick={() => isEditing ? setEditingBundleId(null) : startEditBundle(b.id)}
-                      className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors shrink-0">
-                      {isEditing ? "إغلاق" : "تعديل"}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => isEditing ? setEditingBundleId(null) : startEditBundle(b.id)}
+                        className="text-xs border border-border rounded-lg px-3 py-1.5 hover:bg-soft transition-colors">
+                        {isEditing ? "إغلاق" : "تعديل"}
+                      </button>
+                      <button onClick={() => toggleBundleHidden(b.id, isHidden)} disabled={togglingHidden === b.id}
+                        className={`text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 ${isHidden ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50" : "border-red-200 text-red-500 hover:bg-red-50"}`}>
+                        {togglingHidden === b.id ? "..." : isHidden ? "إظهار" : "حذف"}
+                      </button>
+                    </div>
                   </div>
 
                   {isEditing && (

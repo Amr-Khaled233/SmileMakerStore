@@ -291,9 +291,14 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
                 </p>
               )}
               {colorProducts.map(({ p, qty }) => (
-                <div key={p.slug} className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground min-w-22" dir="ltr">{shopTitle(p, lang)}{qty > 1 ? ` ×${qty}` : ""}</span>
-                  <ColorPicker colors={p.colors!} slug={p.slug} data={data} items={cart.items} selected={inst[p.slug] || undefined} onPick={(c) => cart.setBundleInstanceColor(item.lineId, j, p.slug, c)} />
+                <div key={p.slug} className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground" dir="ltr">{shopTitle(p, lang)}{qty > 1 ? ` ×${qty}` : ""}</span>
+                  {Array.from({ length: qty }).map((_, u) => (
+                    <div key={u} className="flex items-center gap-2 flex-wrap">
+                      {qty > 1 && <span className="text-[10px] text-muted-foreground w-12 shrink-0">{lang === "ar" ? `قطعة ${u + 1}` : `Unit ${u + 1}`}</span>}
+                      <ColorPicker colors={p.colors!} slug={p.slug} data={data} items={cart.items} selected={inst[p.slug]?.[u] || undefined} onPick={(c) => cart.setBundleInstanceColor(item.lineId, j, p.slug, u, c)} />
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

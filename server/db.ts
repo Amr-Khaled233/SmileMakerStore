@@ -20,7 +20,7 @@ export function withLock<T>(fn: () => Promise<T>): Promise<T> {
 type DbDataRaw = Omit<DbData, "freeShipping"> & { freeShipping?: FreeShippingWindow };
 
 const EMPTY_PRICING = { products: [], bundles: [], promoCodes: [] };
-const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null, dynamicProducts: [], dynamicBundles: [], productImageOverrides: {}, productHidden: [], staticOverrides: {}, bundleOverrides: {}, reviewImages: [], carouselImages: [], commissionState: {} };
+const DEFAULT: DbData = { orders: [], inventory: [], pricing: EMPTY_PRICING, freeShipping: null, dynamicProducts: [], dynamicBundles: [], productImageOverrides: {}, productHidden: [], bundleHidden: [], staticOverrides: {}, bundleOverrides: {}, reviewImages: [], carouselImages: [], commissionState: {} };
 
 let _client: MongoClient | null = null;
 let _db: Db | null = null;
@@ -65,6 +65,7 @@ export async function readDb(): Promise<DbData> {
   if (!data.dynamicProducts) data.dynamicProducts = [];
   if (!data.productImageOverrides) data.productImageOverrides = {};
   if (!data.productHidden) data.productHidden = [];
+  if (!data.bundleHidden) data.bundleHidden = [];
   if (!data.staticOverrides) data.staticOverrides = {};
   if (!data.bundleOverrides) data.bundleOverrides = {};
   if (!data.dynamicBundles) data.dynamicBundles = [];

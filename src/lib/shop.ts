@@ -52,8 +52,9 @@ export const bundleItemQty = (b: ShopBundle, slug: string): number => {
 // `colors` (length === qty); non-colour products just use qty.
 export type CartProductItem = { type: "product"; slug: string; qty: number; colors?: string[] };
 // A bundle line. Each unit is an "instance" with its own colour map
-// (slug → colorId), so different bundle units can have different colours.
-export type CartBundleItem = { type: "bundle"; lineId: string; bundleId: string; instances: Array<Record<string, string>> };
+// (slug → one colorId PER contained piece, so a product with qty > 1 in the
+// bundle can have a different colour for each piece).
+export type CartBundleItem = { type: "bundle"; lineId: string; bundleId: string; instances: Array<Record<string, string[]>> };
 export type CartItem = CartProductItem | CartBundleItem;
 
 export const itemQty = (it: CartItem): number => (it.type === "product" ? it.qty : it.instances.length);
@@ -92,9 +93,10 @@ export function useShopData(): ShopData {
       api.getDynamicBundles().catch((): DynamicBundle[] => []),
       api
         .getProductsMeta()
-        .catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
+        .catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], bundleHidden: [] as string[], staticOverrides: {} as Record<string, StaticProductOverride>, bundleOverrides: {} as Record<string, BundleOverride> })),
     ]).then(([inv, pricing, fs, dynProds, dynBundles, meta]) => {
       const hidden = new Set(meta.hidden ?? []);
+      const hiddenBundles = new Set(meta.bundleHidden ?? []);
 
       const staticProducts: ShopProduct[] = PRODUCTS.filter((p) => !hidden.has(p.slug)).map((p) => {
         const priceOv = pricing.products.find((x) => x.slug === p.slug);
@@ -130,7 +132,7 @@ export function useShopData(): ShopData {
           isDynamic: true,
         }));
 
-      const staticBundles: ShopBundle[] = BUNDLES.map((b) => {
+      const staticBundles: ShopBundle[] = BUNDLES.filter((b) => !hiddenBundles.has(b.id)).map((b) => {
         const priceOv = pricing.bundles.find((x) => x.id === b.id);
         const cfg = meta.bundleOverrides?.[b.id];
         return {
@@ -203,10 +205,9 @@ export function consumedColor(items: CartItem[], data: ShopData, slug: string, c
     } else {
       const b = findBundle(data, it.bundleId);
       if (!b || !b.items.includes(slug)) continue;
-      // A bundle may contain a product more than once (qty > 1); every such
-      // unit shares the instance's colour for that slug.
-      const per = bundleItemQty(b, slug);
-      for (const inst of it.instances) if (inst[slug] === colorId) n += per;
+      // Each instance holds one colour per contained piece of the slug; count
+      // every piece whose chosen colour matches.
+      for (const inst of it.instances) for (const c of inst[slug] ?? []) if (c === colorId) n += 1;
     }
   }
   return n;
@@ -264,8 +265,13 @@ export function cartToLines(cart: CartItem[], data: ShopData, lang: Lang): Order
         for (const slug of b.items) {
           const p = findProduct(data, slug);
           if (!p) continue;
-          const cid = p.colors?.length ? inst[slug] : undefined;
-          add(slug, cid || undefined, bundleItemQty(b, slug));
+          const qty = bundleItemQty(b, slug);
+          if (p.colors?.length) {
+            const picks = inst[slug] ?? [];
+            for (let u = 0; u < qty; u++) add(slug, picks[u] || undefined, 1); // one piece per colour pick
+          } else {
+            add(slug, undefined, qty);
+          }
         }
       }
     }
@@ -317,7 +323,15 @@ export function validateStock(cart: CartItem[], data: ShopData, lang: Lang): str
     } else {
       const b = findBundle(data, it.bundleId);
       if (!b) continue;
-      const missing = it.instances.some((inst) => b.items.some((slug) => (findProduct(data, slug)?.colors?.length ?? 0) > 0 && !inst[slug]));
+      const missing = it.instances.some((inst) =>
+        b.items.some((slug) => {
+          const p = findProduct(data, slug);
+          if (!(p?.colors?.length)) return false;
+          const picks = inst[slug] ?? [];
+          for (let u = 0; u < bundleItemQty(b, slug); u++) if (!picks[u]) return true; // a piece is missing its colour
+          return false;
+        }),
+      );
       if (missing) errs.push(lang === "ar" ? `${b.title.ar}: اختر لون لكل منتج في كل باقة` : `${b.title.en}: choose a colour for each product in every bundle`);
     }
   }

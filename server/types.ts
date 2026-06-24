@@ -139,6 +139,7 @@ export type DbData = {
   dynamicBundles: DynamicBundle[];
   productImageOverrides: Record<string, string[]>; // slug -> base64 images
   productHidden: string[]; // slugs of hidden static products
+  bundleHidden: string[]; // ids of hidden static (hardcoded) bundles
   staticOverrides: Record<string, StaticProductOverride>; // slug -> text/feature overrides
   bundleOverrides: Record<string, BundleOverride>; // bundleId -> config overrides
   reviewImages: string[]; // customer review images for homepage slider

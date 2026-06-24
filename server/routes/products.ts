@@ -21,6 +21,7 @@ router.get("/meta", async (_req, res) => {
   res.json({
     imageOverrides: db.productImageOverrides ?? {},
     hidden: db.productHidden ?? [],
+    bundleHidden: db.bundleHidden ?? [],
     staticOverrides: db.staticOverrides ?? {},
     bundleOverrides: db.bundleOverrides ?? {},
   });
@@ -333,6 +334,20 @@ router.patch("/static/:slug/visibility", requireAuth, async (req, res) => {
     if (!db.productHidden.includes(req.params.slug)) db.productHidden.push(req.params.slug);
   } else {
     db.productHidden = db.productHidden.filter((s) => s !== req.params.slug);
+  }
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Hide / show a static (hardcoded) bundle
+router.patch("/bundles/:id/visibility", requireAuth, async (req, res) => {
+  const { hidden } = req.body as { hidden?: boolean };
+  const db = await readDb();
+  db.bundleHidden = db.bundleHidden ?? [];
+  if (hidden) {
+    if (!db.bundleHidden.includes(req.params.id)) db.bundleHidden.push(req.params.id);
+  } else {
+    db.bundleHidden = db.bundleHidden.filter((id) => id !== req.params.id);
   }
   await writeDb(db);
   res.json({ success: true });

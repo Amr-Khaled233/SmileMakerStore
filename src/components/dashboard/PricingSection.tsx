@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Tag, Trash2, Truck, Package, Pencil } from "lucide-react";
 import { api } from "@/lib/api";
-import type { DynamicProduct, DynamicBundle, PromoCodeEntry } from "@/lib/api";
+import type { DynamicProduct, DynamicBundle, PromoCodeEntry, BundleOverride } from "@/lib/api";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 
 type PromoDraft = {
@@ -40,6 +40,7 @@ export function PricingSection({ token }: { token: string }) {
   const [bundleDrafts, setBundleDrafts] = useState<Record<string, string>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
   const [userBundleDrafts, setUserBundleDrafts] = useState<Record<string, string>>({});
+  const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [promos, setPromos] = useState<PromoCodeEntry[]>([]);
   const [newPromo, setNewPromo] = useState<PromoDraft>(EMPTY_PROMO_DRAFT);
   // Code currently being edited inline (the original code, used to detect renames)
@@ -58,11 +59,13 @@ export function PricingSection({ token }: { token: string }) {
   const [fsSaving, setFsSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [data, dynBundles, dynProdsData] = await Promise.all([
+    const [data, dynBundles, dynProdsData, meta] = await Promise.all([
       api.getPricing(token),
       api.getDynamicBundles().catch(() => [] as DynamicBundle[]),
       api.getDynamicProducts().catch(() => [] as DynamicProduct[]),
+      api.getProductsMeta().catch(() => ({ bundleOverrides: {} as Record<string, BundleOverride> })),
     ]);
+    setBundleOverrides(meta.bundleOverrides ?? {});
 
     const pDrafts: Record<string, { price: string; salePrice: string }> = {};
     for (const p of PRODUCTS) {
@@ -397,21 +400,25 @@ export function PricingSection({ token }: { token: string }) {
         <div className="space-y-3">
           {/* Static/original bundles */}
           {BUNDLES.map((b) => {
+            const qtyOf = (slug: string) => { const q = bundleOverrides[b.id]?.quantities?.[slug]; return q && q > 0 ? q : 1; };
             const itemsSum = b.items.reduce((s, slug) => {
               const draft = productDrafts[slug];
               if (draft) {
                 const price = Number(draft.price);
                 const sp = draft.salePrice.trim() ? Number(draft.salePrice) : null;
-                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price) * qtyOf(slug);
               }
               const p = PRODUCTS.find((x) => x.slug === slug);
-              return s + (p ? effectivePrice(p) : 0);
+              return s + (p ? effectivePrice(p) : 0) * qtyOf(slug);
             }, 0);
             const defaultPrice = Math.round(itemsSum * (1 - b.discountPct / 100));
             const inputVal = bundleDrafts[b.id];
             const currentPrice = inputVal !== "" ? Number(inputVal) : NaN;
-            const savings = !isNaN(currentPrice) ? Math.max(0, itemsSum - currentPrice) : 0;
-            const savingsPct = itemsSum > 0 && !isNaN(currentPrice) ? Math.round((savings / itemsSum) * 100) : 0;
+            // Fall back to the discount-based default price when no explicit
+            // price is set, so savings show just like a freshly added bundle.
+            const effPrice = !isNaN(currentPrice) ? currentPrice : defaultPrice;
+            const savings = Math.max(0, itemsSum - effPrice);
+            const savingsPct = itemsSum > 0 ? Math.round((savings / itemsSum) * 100) : 0;
             return (
               <div key={b.id} className="lux-card p-4">
                 <div className="flex items-start gap-4">
@@ -419,7 +426,7 @@ export function PricingSection({ token }: { token: string }) {
                     <p className="font-medium text-ink text-sm">{b.title.ar}</p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                       <span>المجموع الأصلي: <span className="font-medium text-ink">{formatEGP(itemsSum)}</span></span>
-                      {!isNaN(currentPrice) && savings > 0 && (
+                      {savings > 0 && (
                         <span className="text-deep-blue font-medium">· وفر {formatEGP(savings)} ({savingsPct}%)</span>
                       )}
                     </div>
@@ -440,18 +447,19 @@ export function PricingSection({ token }: { token: string }) {
           })}
           {/* User-created bundles — same style */}
           {userBundles.map((b) => {
+            const qtyOf = (slug: string) => { const q = b.quantities?.[slug]; return q && q > 0 ? q : 1; };
             const itemsSum = b.items.reduce((s, slug) => {
               const pd = productDrafts[slug];
               if (pd) {
                 const price = Number(pd.price);
                 const sp = pd.salePrice.trim() ? Number(pd.salePrice) : null;
-                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price) * qtyOf(slug);
               }
               const dd = dynProductDrafts[slug];
               if (dd) {
                 const price = Number(dd.price);
                 const sp = dd.salePrice.trim() ? Number(dd.salePrice) : null;
-                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price);
+                return s + (sp != null && !isNaN(sp) && sp > 0 ? sp : price) * qtyOf(slug);
               }
               return s;
             }, 0);

@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { itemQty, type CartItem, type CartProductItem, type CartBundleItem } from "@/lib/shop";
 
-const STORAGE_KEY = "sm-cart-v2";
-const BUYNOW_KEY = "sm-buynow-v2";
+const STORAGE_KEY = "sm-cart-v3";
+const BUYNOW_KEY = "sm-buynow-v3";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -20,7 +20,7 @@ type CartCtx = {
   addBundle: (bundleId: string) => void; // appends one instance (merges by bundleId)
   addBundleInstance: (lineId: string) => void;
   removeBundleInstance: (lineId: string, instanceIdx: number) => void;
-  setBundleInstanceColor: (lineId: string, instanceIdx: number, slug: string, colorId: string) => void;
+  setBundleInstanceColor: (lineId: string, instanceIdx: number, slug: string, unitIdx: number, colorId: string) => void;
   removeBundle: (lineId: string) => void;
   // Misc
   clear: () => void;
@@ -124,11 +124,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const setBundleInstanceColor = useCallback((lineId: string, instanceIdx: number, slug: string, colorId: string) => {
+  const setBundleInstanceColor = useCallback((lineId: string, instanceIdx: number, slug: string, unitIdx: number, colorId: string) => {
     setItems((prev) =>
       prev.map((i) =>
         i.type === "bundle" && i.lineId === lineId
-          ? { ...i, instances: i.instances.map((inst, j) => (j === instanceIdx ? { ...inst, [slug]: colorId } : inst)) }
+          ? {
+              ...i,
+              instances: i.instances.map((inst, j) => {
+                if (j !== instanceIdx) return inst;
+                const picks = [...(inst[slug] ?? [])];
+                while (picks.length <= unitIdx) picks.push("");
+                picks[unitIdx] = colorId;
+                return { ...inst, [slug]: picks };
+              }),
+            }
           : i,
       ),
     );
