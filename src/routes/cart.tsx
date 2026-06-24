@@ -245,6 +245,14 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
   const perBundle = b.fixedPrice !== undefined ? b.fixedPrice : Math.round(itemsSum * (1 - b.discountPct / 100));
   const colorProducts = items.filter((p) => (p.colors?.length ?? 0) > 0);
 
+  // Can we add one more bundle unit? Only if every product in it still has
+  // at least one orderable unit left (a free colour, or non-colour stock).
+  const canAddInstance = items.every((p) =>
+    (p.colors?.length ?? 0) > 0
+      ? p.colors!.some((c) => colorRemaining(cart.items, data, p.slug, c.id) > 0)
+      : productRemaining(cart.items, data, p.slug) > 0,
+  );
+
   return (
     <div className="lux-card p-4 border-2 border-deep-blue/15">
       <div className="flex items-start justify-between gap-2">
@@ -287,10 +295,13 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
       )}
 
       <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5">
-          <button type="button" onClick={() => cart.removeBundleInstance(item.lineId, item.instances.length - 1)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center"><Minus className="h-3.5 w-3.5" /></button>
-          <span className="w-8 text-center text-sm font-medium">{item.instances.length}</span>
-          <button type="button" onClick={() => cart.addBundleInstance(item.lineId)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center"><Plus className="h-3.5 w-3.5" /></button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-full border-2 border-border bg-white p-0.5">
+            <button type="button" onClick={() => cart.removeBundleInstance(item.lineId, item.instances.length - 1)} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center"><Minus className="h-3.5 w-3.5" /></button>
+            <span className="w-8 text-center text-sm font-medium">{item.instances.length}</span>
+            <button type="button" onClick={() => cart.addBundleInstance(item.lineId)} disabled={!canAddInstance} className="h-7 w-7 rounded-full hover:bg-soft flex items-center justify-center disabled:opacity-30"><Plus className="h-3.5 w-3.5" /></button>
+          </div>
+          {!canAddInstance && <span className="text-[11px] text-amber-600">{lang === "ar" ? "نفد المخزون" : "Max stock"}</span>}
         </div>
         <span className="price-tag text-gradient whitespace-nowrap">{formatEGP(perBundle * item.instances.length, lang)}</span>
       </div>
