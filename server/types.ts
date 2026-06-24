@@ -106,6 +106,7 @@ export type DynamicBundle = {
   taglineEn?: string;
   taglineAr?: string;
   items: string[]; // product slugs (static or dynamic)
+  quantities?: Record<string, number>; // slug -> qty per bundle unit (defaults to 1)
   price: number;
 };
 
@@ -115,6 +116,7 @@ export type BundleOverride = {
   taglineEn?: string;
   taglineAr?: string;
   items?: string[]; // slugs — static or dynamic
+  quantities?: Record<string, number>; // slug -> qty per bundle unit (defaults to 1)
   discountPct?: number;
 };
 

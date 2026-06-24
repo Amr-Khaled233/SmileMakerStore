@@ -13,6 +13,7 @@ import {
   productRemaining,
   cartToLines,
   bundleDiscountTotal,
+  bundleItemQty,
   validateStock,
   type ShopData,
   type CartItem,
@@ -240,14 +241,19 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
     );
   }
 
-  const items = b.items.map((s) => findProduct(data, s)).filter(Boolean) as NonNullable<ReturnType<typeof findProduct>>[];
-  const itemsSum = items.reduce((s, p) => s + unitPrice(p), 0);
+  // Each product appears once; its per-bundle count comes from b.quantities.
+  // A product with qty > 1 shares one colour selection per bundle instance.
+  const grouped = b.items
+    .map((s) => findProduct(data, s))
+    .filter(Boolean)
+    .map((p) => ({ p: p as NonNullable<typeof p>, qty: bundleItemQty(b, p!.slug) }));
+  const itemsSum = grouped.reduce((s, { p, qty }) => s + unitPrice(p) * qty, 0);
   const perBundle = b.fixedPrice !== undefined ? b.fixedPrice : Math.round(itemsSum * (1 - b.discountPct / 100));
-  const colorProducts = items.filter((p) => (p.colors?.length ?? 0) > 0);
+  const colorProducts = grouped.filter((g) => (g.p.colors?.length ?? 0) > 0);
 
   // Can we add one more bundle unit? Only if every product in it still has
   // at least one orderable unit left (a free colour, or non-colour stock).
-  const canAddInstance = items.every((p) =>
+  const canAddInstance = grouped.every(({ p }) =>
     (p.colors?.length ?? 0) > 0
       ? p.colors!.some((c) => colorRemaining(cart.items, data, p.slug, c.id) > 0)
       : productRemaining(cart.items, data, p.slug) > 0,
@@ -264,10 +270,11 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
         <button onClick={() => cart.removeBundle(item.lineId)} title={t("cart.remove")} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 className="h-4 w-4" /></button>
       </div>
 
-      <div className="mt-3 flex gap-2">
-        {items.map((p) => (
-          <div key={p.slug} className="h-12 w-12 rounded-xl bg-soft border border-border overflow-hidden flex items-center justify-center">
+      <div className="mt-3 flex gap-2 flex-wrap">
+        {grouped.map(({ p, qty }) => (
+          <div key={p.slug} className="relative h-12 w-12 rounded-xl bg-soft border border-border overflow-hidden flex items-center justify-center">
             {p.image && <img src={p.image} alt={p.title} className="w-3/4 h-3/4 object-contain" />}
+            {qty > 1 && <span className="absolute -top-1.5 -inset-e-1.5 min-w-4 h-4 px-1 rounded-full bg-deep-blue text-white text-[9px] font-semibold flex items-center justify-center">×{qty}</span>}
           </div>
         ))}
       </div>
@@ -283,9 +290,9 @@ function BundleLine({ item, data }: { item: CartBundleItem; data: ShopData }) {
                   {lang === "ar" ? `الباقة ${j + 1}` : `Bundle ${j + 1}`}
                 </p>
               )}
-              {colorProducts.map((p) => (
+              {colorProducts.map(({ p, qty }) => (
                 <div key={p.slug} className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground min-w-22" dir="ltr">{shopTitle(p, lang)}</span>
+                  <span className="text-xs text-muted-foreground min-w-22" dir="ltr">{shopTitle(p, lang)}{qty > 1 ? ` ×${qty}` : ""}</span>
                   <ColorPicker colors={p.colors!} slug={p.slug} data={data} items={cart.items} selected={inst[p.slug] || undefined} onPick={(c) => cart.setBundleInstanceColor(item.lineId, j, p.slug, c)} />
                 </div>
               ))}

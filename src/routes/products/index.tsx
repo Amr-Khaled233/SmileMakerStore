@@ -213,7 +213,8 @@ function ProductsPage() {
             {userBundles.map((b) => {
               const allProds = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, price: p.salePrice ?? p.price, salePrice: undefined as number | undefined, image: imageOverrides[p.slug]?.[0] ?? p.images[0] ?? "" }))];
               const items = b.items.map((s) => allProds.find((p) => p.slug === s)).filter(Boolean) as { slug: string; title: string; price: number; salePrice?: number; image: string }[];
-              const total = items.reduce((s, i) => s + (i.salePrice ?? i.price), 0);
+              const qtyOf = (slug: string) => { const q = b.quantities?.[slug]; return q && q > 0 ? q : 1; };
+              const total = items.reduce((s, i) => s + (i.salePrice ?? i.price) * qtyOf(i.slug), 0);
               const priceOv = pricing.bundles.find((x) => x.id === b.id);
               const discounted = priceOv?.price ?? b.price;
               const savingsPct = total > 0 && total > discounted ? Math.round(((total - discounted) / total) * 100) : 0;
@@ -230,12 +231,13 @@ function ProductsPage() {
 
                   <div className="mt-5 flex items-center gap-3 flex-wrap">
                     {items.map((i) => (
-                      <div key={i.slug} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
+                      <div key={i.slug} className="relative h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
                         {i.image ? (
                           <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
                         ) : (
                           <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
                         )}
+                        {qtyOf(i.slug) > 1 && <span className="absolute -top-1.5 -inset-e-1.5 min-w-5 h-5 px-1 rounded-full bg-deep-blue text-white text-[10px] font-semibold flex items-center justify-center">×{qtyOf(i.slug)}</span>}
                       </div>
                     ))}
                   </div>

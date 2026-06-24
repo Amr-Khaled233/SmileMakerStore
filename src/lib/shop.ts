@@ -36,9 +36,16 @@ export type ShopBundle = {
   id: string;
   title: { en: string; ar: string };
   tagline: { en: string; ar: string };
-  items: string[]; // product slugs
+  items: string[]; // product slugs (each appears once)
+  quantities: Record<string, number>; // slug -> qty per bundle unit (defaults to 1)
   discountPct: number;
   fixedPrice?: number;
+};
+
+// How many units of a given product one bundle unit contains (default 1).
+export const bundleItemQty = (b: ShopBundle, slug: string): number => {
+  const q = b.quantities[slug];
+  return q && q > 0 ? q : 1;
 };
 
 // A product line in the cart. Colour products carry one colorId PER UNIT in
@@ -131,6 +138,7 @@ export function useShopData(): ShopData {
           title: { en: cfg?.titleEn || b.title.en, ar: cfg?.titleAr || b.title.ar },
           tagline: { en: cfg?.taglineEn || b.tagline.en, ar: cfg?.taglineAr || b.tagline.ar },
           items: cfg?.items ?? b.items,
+          quantities: cfg?.quantities ?? {},
           discountPct: cfg?.discountPct ?? b.discountPct,
           fixedPrice: priceOv?.price,
         };
@@ -141,6 +149,7 @@ export function useShopData(): ShopData {
         title: { en: b.titleEn, ar: b.titleAr },
         tagline: { en: b.taglineEn ?? "", ar: b.taglineAr ?? "" },
         items: b.items,
+        quantities: b.quantities ?? {},
         discountPct: 0,
         fixedPrice: pricing.bundles.find((x) => x.id === b.id)?.price ?? b.price,
       }));
@@ -194,7 +203,10 @@ export function consumedColor(items: CartItem[], data: ShopData, slug: string, c
     } else {
       const b = findBundle(data, it.bundleId);
       if (!b || !b.items.includes(slug)) continue;
-      for (const inst of it.instances) if (inst[slug] === colorId) n += 1;
+      // A bundle may contain a product more than once (qty > 1); every such
+      // unit shares the instance's colour for that slug.
+      const per = bundleItemQty(b, slug);
+      for (const inst of it.instances) if (inst[slug] === colorId) n += per;
     }
   }
   return n;
@@ -253,7 +265,7 @@ export function cartToLines(cart: CartItem[], data: ShopData, lang: Lang): Order
           const p = findProduct(data, slug);
           if (!p) continue;
           const cid = p.colors?.length ? inst[slug] : undefined;
-          add(slug, cid || undefined, 1);
+          add(slug, cid || undefined, bundleItemQty(b, slug));
         }
       }
     }
@@ -269,7 +281,7 @@ export function bundleDiscountTotal(cart: CartItem[], data: ShopData): number {
     if (!b) continue;
     const itemsSum = b.items.reduce((s, slug) => {
       const p = findProduct(data, slug);
-      return s + (p ? unitPrice(p) : 0);
+      return s + (p ? unitPrice(p) * bundleItemQty(b, slug) : 0);
     }, 0);
     const discount = b.fixedPrice !== undefined ? Math.max(0, itemsSum - b.fixedPrice) : Math.round((itemsSum * b.discountPct) / 100);
     sum += discount * it.instances.length;

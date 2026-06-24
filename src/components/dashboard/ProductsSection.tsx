@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type React from "react";
-import { Package, Trash2 } from "lucide-react";
+import { Package, Trash2, Minus, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DynamicProduct, DynamicBundle, BundleOverride, StaticProductOverride, Pricing } from "@/lib/api";
 import { PRODUCTS, BUNDLES, PRODUCT_DETAILS, H2O_GALLERY, ORTHO_KIT_GALLERY, ELECTRIC_BRUSH_GALLERY, WAX_GALLERY, LSHAPED_GALLERY, type ProductSlug } from "@/data/products";
@@ -105,12 +105,12 @@ export function ProductsSection({ token }: { token: string }) {
   // Hardcoded bundle overrides
   const [bundleOverrides, setBundleOverrides] = useState<Record<string, BundleOverride>>({});
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
-  const [bundleForm, setBundleForm] = useState({ titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[] });
+  const [bundleForm, setBundleForm] = useState({ titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], quantities: {} as Record<string, number> });
   const [savingBundle, setSavingBundle] = useState(false);
 
   // User-created bundles
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
-  const EMPTY_BUNDLE_FORM = { titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], price: "" };
+  const EMPTY_BUNDLE_FORM = { titleEn: "", titleAr: "", taglineEn: "", taglineAr: "", items: [] as string[], quantities: {} as Record<string, number>, price: "" };
   const [newBundleForm, setNewBundleForm] = useState(EMPTY_BUNDLE_FORM);
   const [creatingBundle, setCreatingBundle] = useState(false);
   const [editingUserBundleId, setEditingUserBundleId] = useState<string | null>(null);
@@ -346,6 +346,7 @@ export function ProductsSection({ token }: { token: string }) {
       taglineEn: ov.taglineEn ?? base.tagline.en,
       taglineAr: ov.taglineAr ?? base.tagline.ar,
       items: ov.items ?? [...base.items],
+      quantities: { ...(ov.quantities ?? {}) },
     });
     setEditingBundleId(id);
   };
@@ -358,19 +359,35 @@ export function ProductsSection({ token }: { token: string }) {
       taglineEn: bundleForm.taglineEn || undefined,
       taglineAr: bundleForm.taglineAr || undefined,
       items: bundleForm.items,
+      quantities: bundleForm.quantities,
     }).catch(() => {});
     await load();
     setSavingBundle(false);
     setEditingBundleId(null);
   };
+  // Toggle a slug in/out of a bundle form; dropping a slug also drops its qty.
+  const toggleBundleSlug = (items: string[], quantities: Record<string, number>, slug: string) => {
+    if (items.includes(slug)) {
+      const nextQ = { ...quantities };
+      delete nextQ[slug];
+      return { items: items.filter((s) => s !== slug), quantities: nextQ };
+    }
+    return { items: [...items, slug], quantities };
+  };
   const toggleBundleItem = (slug: string) =>
-    setBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+    setBundleForm((f) => ({ ...f, ...toggleBundleSlug(f.items, f.quantities, slug) }));
+  const setBundleItemQtyForm = (slug: string, qty: number) =>
+    setBundleForm((f) => ({ ...f, quantities: { ...f.quantities, [slug]: Math.max(1, qty) } }));
 
   // ── User-created bundle handlers ──
   const toggleNewBundleItem = (slug: string) =>
-    setNewBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+    setNewBundleForm((f) => ({ ...f, ...toggleBundleSlug(f.items, f.quantities, slug) }));
+  const setNewBundleItemQty = (slug: string, qty: number) =>
+    setNewBundleForm((f) => ({ ...f, quantities: { ...f.quantities, [slug]: Math.max(1, qty) } }));
   const toggleEditUserBundleItem = (slug: string) =>
-    setEditUserBundleForm((f) => ({ ...f, items: f.items.includes(slug) ? f.items.filter((s) => s !== slug) : [...f.items, slug] }));
+    setEditUserBundleForm((f) => ({ ...f, ...toggleBundleSlug(f.items, f.quantities, slug) }));
+  const setEditUserBundleItemQty = (slug: string, qty: number) =>
+    setEditUserBundleForm((f) => ({ ...f, quantities: { ...f.quantities, [slug]: Math.max(1, qty) } }));
 
   const createUserBundle = async () => {
     const price = Number(newBundleForm.price);
@@ -382,6 +399,7 @@ export function ProductsSection({ token }: { token: string }) {
       taglineEn: newBundleForm.taglineEn.trim() || undefined,
       taglineAr: newBundleForm.taglineAr.trim() || undefined,
       items: newBundleForm.items,
+      quantities: newBundleForm.quantities,
       price,
     }).catch(() => {});
     setNewBundleForm(EMPTY_BUNDLE_FORM);
@@ -397,7 +415,7 @@ export function ProductsSection({ token }: { token: string }) {
 
   const startEditUserBundle = (id: string) => {
     const b = userBundles.find((x) => x.id === id)!;
-    setEditUserBundleForm({ titleEn: b.titleEn, titleAr: b.titleAr, taglineEn: b.taglineEn ?? "", taglineAr: b.taglineAr ?? "", items: [...b.items], price: String(b.price) });
+    setEditUserBundleForm({ titleEn: b.titleEn, titleAr: b.titleAr, taglineEn: b.taglineEn ?? "", taglineAr: b.taglineAr ?? "", items: [...b.items], quantities: { ...(b.quantities ?? {}) }, price: String(b.price) });
     setEditingUserBundleId(id);
   };
 
@@ -411,6 +429,7 @@ export function ProductsSection({ token }: { token: string }) {
       taglineEn: editUserBundleForm.taglineEn.trim() || undefined,
       taglineAr: editUserBundleForm.taglineAr.trim() || undefined,
       items: editUserBundleForm.items,
+      quantities: editUserBundleForm.quantities,
       // price intentionally omitted — edit from Pricing tab only
     }).catch(() => {});
     await load();
@@ -476,12 +495,12 @@ export function ProductsSection({ token }: { token: string }) {
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">الوصف (إنجليزي)</label>
-                  <textarea className="lux-input min-h-[80px] resize-y" placeholder="Product description..."
+                  <textarea className="lux-input min-h-20 resize-y" placeholder="Product description..."
                     value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">الوصف (عربي)</label>
-                  <textarea className="lux-input min-h-[80px] resize-y" placeholder="وصف المنتج..." dir="rtl"
+                  <textarea className="lux-input min-h-20 resize-y" placeholder="وصف المنتج..." dir="rtl"
                     value={form.descriptionAr} onChange={(e) => setForm((f) => ({ ...f, descriptionAr: e.target.value }))} />
                 </div>
               </div>
@@ -732,12 +751,12 @@ export function ProductsSection({ token }: { token: string }) {
                         <div className="grid sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">الوصف الكامل (إنجليزي)</label>
-                            <textarea className="lux-input text-xs min-h-[100px] resize-y" value={staticEditForm.description}
+                            <textarea className="lux-input text-xs min-h-25 resize-y" value={staticEditForm.description}
                               onChange={(e) => setStaticEditForm((f) => ({ ...f, description: e.target.value }))} />
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">الوصف الكامل (عربي)</label>
-                            <textarea className="lux-input text-xs min-h-[100px] resize-y" value={staticEditForm.descriptionAr} dir="rtl"
+                            <textarea className="lux-input text-xs min-h-25 resize-y" value={staticEditForm.descriptionAr} dir="rtl"
                               onChange={(e) => setStaticEditForm((f) => ({ ...f, descriptionAr: e.target.value }))} />
                           </div>
                         </div>
@@ -1111,18 +1130,9 @@ export function ProductsSection({ token }: { token: string }) {
               </div>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
-              <div className="flex flex-wrap gap-2">
-                {allProductOptions.map((opt) => {
-                  const checked = newBundleForm.items.includes(opt.slug);
-                  return (
-                    <button key={opt.slug} type="button" onClick={() => toggleNewBundleItem(opt.slug)}
-                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}>
-                      {checked ? "✓ " : ""}{opt.title}
-                    </button>
-                  );
-                })}
-              </div>
+              <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة (اضغط على المنتج لإضافته، وتحكم في العدد)</label>
+              <BundleItemPicker options={allProductOptions} items={newBundleForm.items} quantities={newBundleForm.quantities}
+                onToggle={toggleNewBundleItem} onQty={setNewBundleItemQty} />
             </div>
             <button onClick={createUserBundle} disabled={creatingBundle || !newBundleForm.titleEn.trim() || !newBundleForm.titleAr.trim() || newBundleForm.items.length === 0 || !newBundleForm.price}
               className="btn-primary text-sm disabled:opacity-50">
@@ -1208,18 +1218,9 @@ export function ProductsSection({ token }: { token: string }) {
                       </div>
                       <p className="text-xs text-muted-foreground">لتعديل السعر، اذهب إلى تبويب الأسعار.</p>
                       <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
-                        <div className="flex flex-wrap gap-2">
-                          {allProductOptions.map((opt) => {
-                            const checked = editUserBundleForm.items.includes(opt.slug);
-                            return (
-                              <button key={opt.slug} type="button" onClick={() => toggleEditUserBundleItem(opt.slug)}
-                                className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}>
-                                {checked ? "✓ " : ""}{opt.title}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة (اضغط على المنتج لإضافته، وتحكم في العدد)</label>
+                        <BundleItemPicker options={allProductOptions} items={editUserBundleForm.items} quantities={editUserBundleForm.quantities}
+                          onToggle={toggleEditUserBundleItem} onQty={setEditUserBundleItemQty} />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={saveUserBundle} disabled={savingUserBundle}
@@ -1297,18 +1298,9 @@ export function ProductsSection({ token }: { token: string }) {
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة</label>
-                        <div className="flex flex-wrap gap-2">
-                          {allProductOptions.map((opt) => {
-                            const checked = bundleForm.items.includes(opt.slug);
-                            return (
-                              <button key={opt.slug} type="button" onClick={() => toggleBundleItem(opt.slug)}
-                                className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}>
-                                {checked ? "✓ " : ""}{opt.title}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <label className="text-xs text-muted-foreground mb-2 block">المنتجات في الباقة (اضغط على المنتج لإضافته، وتحكم في العدد)</label>
+                        <BundleItemPicker options={allProductOptions} items={bundleForm.items} quantities={bundleForm.quantities}
+                          onToggle={toggleBundleItem} onQty={setBundleItemQtyForm} />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={saveBundle} disabled={savingBundle}
@@ -1326,6 +1318,54 @@ export function ProductsSection({ token }: { token: string }) {
         </section>
         </div>
       )}
+    </div>
+  );
+}
+
+// Product chips for a bundle form. Selected products show a quantity stepper so
+// the manager can control how many of each item the bundle contains.
+function BundleItemPicker({
+  options,
+  items,
+  quantities,
+  onToggle,
+  onQty,
+}: {
+  options: { slug: string; title: string }[];
+  items: string[];
+  quantities: Record<string, number>;
+  onToggle: (slug: string) => void;
+  onQty: (slug: string, qty: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => {
+        const checked = items.includes(opt.slug);
+        const qty = quantities[opt.slug] && quantities[opt.slug] > 0 ? quantities[opt.slug] : 1;
+        return (
+          <div
+            key={opt.slug}
+            className={`flex items-center gap-1 border rounded-lg ps-3 pe-1 py-1 text-xs transition-colors ${checked ? "bg-deep-blue/10 border-deep-blue text-deep-blue" : "border-border hover:bg-soft"}`}
+          >
+            <button type="button" onClick={() => onToggle(opt.slug)} className="font-medium">
+              {checked ? "✓ " : ""}{opt.title}
+            </button>
+            {checked && (
+              <span className="flex items-center gap-0.5 ms-1">
+                <button type="button" onClick={() => onQty(opt.slug, qty - 1)} disabled={qty <= 1}
+                  className="h-5 w-5 rounded-full bg-white border border-deep-blue/30 flex items-center justify-center disabled:opacity-30">
+                  <Minus className="h-3 w-3" />
+                </button>
+                <span className="w-5 text-center font-semibold">{qty}</span>
+                <button type="button" onClick={() => onQty(opt.slug, qty + 1)}
+                  className="h-5 w-5 rounded-full bg-white border border-deep-blue/30 flex items-center justify-center">
+                  <Plus className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
