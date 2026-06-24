@@ -4,6 +4,7 @@ import { Sparkles, Shield, Heart, Lightbulb } from "lucide-react";
 import logo from "@/assets/smile-maker-logo.png";
 import clinic from "@/assets/about-clinic.jpg";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -11,6 +12,10 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   const { t } = useT();
+  useSeo({
+    title: "من نحن",
+    description: "اعرف أكتر عن سمايل ميكر (Smile Maker) — متجر أجهزة العناية بالأسنان والابتسامة في مصر: منتجات أصلية، أسعار مناسبة، وتوصيل لكل المحافظات.",
+  });
   const values = [
     { icon: Lightbulb, title: t("about.values.innov.t"), text: t("about.values.innov.x") },
     { icon: Shield, title: t("about.values.safety.t"), text: t("about.values.safety.x") },
@@ -39,7 +44,7 @@ function AboutPage() {
 
       <section className="section-pad">
         <div className="container-lux grid lg:grid-cols-2 gap-16 items-center">
-          <img src={clinic} alt="Smile Maker studio" loading="lazy" width={1920} height={1080} className="rounded-3xl shadow-[var(--shadow-glow)] object-cover w-full aspect-[4/3]" />
+          <img src={clinic} alt="Smile Maker studio" loading="lazy" width={1920} height={1080} className="rounded-3xl shadow-(--shadow-glow) object-cover w-full aspect-4/3" />
           <div>
             <p className="eyebrow">{t("about.who.eyebrow")}</p>
             <h2 className="mt-3 text-4xl">{t("about.who.h")}</h2>
@@ -86,7 +91,7 @@ function AboutPage() {
 
       <section className="section-pad">
         <div className="container-lux">
-          <div className="rounded-3xl p-12 md:p-20 text-center bg-brand text-white shadow-[var(--shadow-glow)]">
+          <div className="rounded-3xl p-12 md:p-20 text-center bg-brand text-white shadow-(--shadow-glow)">
             <h2 className="text-4xl md:text-5xl text-white">{t("about.cta.h")}</h2>
             <p className="mt-4 opacity-90 max-w-xl mx-auto">{t("about.cta.lead")}</p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">

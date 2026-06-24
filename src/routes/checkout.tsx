@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Tag, Truck, CheckCircle2, Receipt, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
 import { SHIPPING_ZONES, formatEGP } from "@/data/products";
@@ -33,6 +34,7 @@ const orderSchema = z.object({
 function CheckoutPage() {
   const { mode } = Route.useSearch();
   const { t, tl, lang } = useT();
+  useSeo({ title: lang === "ar" ? "إتمام الطلب" : "Checkout" });
   const nav = useNavigate();
   const cart = useCart();
   const data = useShopData();

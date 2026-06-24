@@ -86,7 +86,7 @@ export function ProductDetail(p: ProductDetailProps) {
         <div className="absolute inset-0" style={{ background: "var(--gradient-arc)" }} />
         <div className="container-lux relative grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative">
-            <div className="aspect-square rounded-3xl bg-white shadow-[var(--shadow-glow)] flex items-center justify-center overflow-hidden">
+            <div className="aspect-square rounded-3xl bg-white shadow-(--shadow-glow) flex items-center justify-center overflow-hidden">
               <img key={activeImg} src={activeImg} alt={p.title} loading="eager" width={1024} height={1024} className="w-4/5 h-4/5 object-contain animate-float" />
             </div>
             {gallery.length > 1 && (
@@ -215,7 +215,7 @@ export function ProductDetail(p: ProductDetailProps) {
           <div className="grid sm:grid-cols-2 gap-6">
             {relatedWithPricing.map((r) => (
               <Link key={r.slug} to="/products/$slug" params={{ slug: r.slug }} className="lux-card overflow-hidden block group">
-                <div className="aspect-[4/3] bg-soft flex items-center justify-center overflow-hidden">
+                <div className="aspect-4/3 bg-soft flex items-center justify-center overflow-hidden">
                   <img src={r.image} alt={r.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
                 </div>
                 <div className="p-6 flex items-center justify-between">

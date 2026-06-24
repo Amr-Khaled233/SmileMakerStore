@@ -103,7 +103,7 @@ export function HomeCarousel({ images }: Props) {
   return (
     <div className="select-none">
       <div
-        className="overflow-hidden rounded-3xl shadow-[var(--shadow-glow)]"
+        className="overflow-hidden rounded-3xl shadow-(--shadow-glow)"
         style={{ cursor: "grab" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -123,7 +123,7 @@ export function HomeCarousel({ images }: Props) {
           onTransitionEnd={onTransitionEnd}
         >
           {extended.map((src, i) => (
-            <div key={i} className="aspect-square sm:aspect-[16/9] flex items-center justify-center" style={{ width: `${100 / total}%` }}>
+            <div key={i} className="aspect-square sm:aspect-16/9 flex items-center justify-center" style={{ width: `${100 / total}%` }}>
               <img
                 src={src}
                 alt=""

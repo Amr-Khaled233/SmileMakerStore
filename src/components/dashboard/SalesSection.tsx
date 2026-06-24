@@ -82,7 +82,7 @@ export function SalesSection({ orders }: { orders: Order[] }) {
                 </div>
                 <div className="h-3 rounded-full bg-soft overflow-hidden">
                   <div
-                    className={`h-full rounded-full bg-gradient-to-r transition-all ${
+                    className={`h-full rounded-full bg-linear-to-r transition-all ${
                       isSelected
                         ? "from-deep-blue to-turquoise"
                         : CHART_GRADIENTS[i % CHART_GRADIENTS.length]
@@ -124,7 +124,7 @@ export function SalesSection({ orders }: { orders: Order[] }) {
                   </div>
                   <div className="h-2.5 rounded-full bg-soft overflow-hidden">
                     <div
-                      className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                      className={`h-full rounded-full bg-linear-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
                       style={{ width: `${Math.max(4, Math.round((p.revenue / maxProductRevenue) * 100))}%` }}
                     />
                   </div>

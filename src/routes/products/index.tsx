@@ -3,6 +3,7 @@ import { Layout } from "@/components/site/Layout";
 import { ArrowRight, Star, Sparkles } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { useCart } from "@/lib/cart";
 import { useState, useEffect } from "react";
 import { api, type Pricing, type DynamicProduct, type DynamicBundle, type PublicInventoryStatus } from "@/lib/api";
@@ -13,6 +14,10 @@ export const Route = createFileRoute("/products/")({
 
 function ProductsPage() {
   const { t, tl, lang } = useT();
+  useSeo({
+    title: lang === "ar" ? "كل المنتجات" : "All Products",
+    description: "تسوّق كل منتجات سمايل ميكر للعناية بالأسنان والفم — واتر فلوسر، فرشاة أسنان كهربائية، أطقم تقويم وأكسسوارات، بأسعار مناسبة وتوصيل لكل محافظات مصر.",
+  });
   const nav = useNavigate();
   const cart = useCart();
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });

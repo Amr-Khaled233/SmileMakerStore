@@ -22,7 +22,7 @@ export function Header() {
     <Link to="/cart" className="relative inline-flex items-center justify-center h-10 w-10 rounded-full border border-border bg-white hover:border-turquoise transition-colors" aria-label={t("nav.cart")}>
       <ShoppingCart className="h-4 w-4 text-ink" />
       {count > 0 && (
-        <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
+        <span className="absolute -top-1 -inset-e-1 min-w-4.5 h-4.5 px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
           {count}
         </span>
       )}

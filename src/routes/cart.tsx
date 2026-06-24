@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
 import { Minus, Plus, Trash2, ShoppingCart, Sparkles, Check } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { useCart } from "@/lib/cart";
 import {
   useShopData,
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { t, lang } = useT();
+  useSeo({ title: lang === "ar" ? "سلة التسوّق" : "Your Cart" });
   const nav = useNavigate();
   const cart = useCart();
   const data = useShopData();

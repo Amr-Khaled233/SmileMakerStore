@@ -4,6 +4,7 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { PRODUCTS, PRODUCT_DETAILS, formatEGP, type ProductSlug, type ProductDetails } from "@/data/products";
 import { api, type DynamicProduct, type Pricing } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { useState, useEffect } from "react";
 import { Star, Check, ArrowRight } from "lucide-react";
 import { PurchasePanel } from "@/components/site/PurchasePanel";
@@ -27,6 +28,11 @@ function ProductPage() {
 }
 
 function StaticProductPage({ staticProduct, staticDetails }: { staticProduct: (typeof PRODUCTS)[number]; staticDetails: ProductDetails }) {
+  useSeo({
+    title: `${staticProduct.title} — ${staticProduct.tagline.ar}`,
+    description: staticProduct.description.ar || staticProduct.description.en,
+    image: staticProduct.image,
+  });
   const [ready, setReady] = useState(false);
   const [price, setPrice] = useState(staticProduct.price);
   const [salePrice, setSalePrice] = useState<number | undefined>(staticProduct.salePrice);
@@ -96,6 +102,13 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
     }).catch(() => setProduct(null));
   }, [slug]);
 
+  const p = product && typeof product === "object" ? product : null;
+  useSeo({
+    title: p ? (lang === "ar" && p.titleAr ? p.titleAr : p.title) : undefined,
+    description: p ? (lang === "ar" ? p.descriptionAr || p.description : p.description) : undefined,
+    image: p?.images?.[0],
+  });
+
   if (product === "loading") {
     return (
       <Layout>
@@ -126,7 +139,7 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
         <div className="absolute inset-0" style={{ background: "var(--gradient-arc)" }} />
         <div className="container-lux relative grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative">
-            <div className="aspect-square rounded-3xl bg-white shadow-[var(--shadow-glow)] flex items-center justify-center overflow-hidden">
+            <div className="aspect-square rounded-3xl bg-white shadow-(--shadow-glow) flex items-center justify-center overflow-hidden">
               {activeImg ? (
                 <img key={activeImg} src={activeImg} alt={product.title} loading="eager" className="w-full h-full object-cover" />
               ) : (

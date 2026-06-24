@@ -74,7 +74,7 @@ export function AnalyticsSection({ orders }: { orders: Order[] }) {
                 </div>
                 <div className="h-2.5 rounded-full bg-soft overflow-hidden">
                   <div
-                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                    className={`h-full rounded-full bg-linear-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
                     style={{ width: `${Math.max(4, Math.round((p.units / maxUnits) * 100))}%` }}
                   />
                 </div>
@@ -108,7 +108,7 @@ export function AnalyticsSection({ orders }: { orders: Order[] }) {
                 </div>
                 <div className="h-2 rounded-full bg-soft overflow-hidden">
                   <div
-                    className={`h-full rounded-full bg-gradient-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
+                    className={`h-full rounded-full bg-linear-to-r ${CHART_GRADIENTS[i % CHART_GRADIENTS.length]}`}
                     style={{ width: `${Math.max(4, Math.round((c.revenue / maxCityRevenue) * 100))}%` }}
                   />
                 </div>

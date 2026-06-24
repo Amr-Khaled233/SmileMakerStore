@@ -3,6 +3,7 @@ import { Layout } from "@/components/site/Layout";
 import { Mail, Phone, MapPin, Instagram, Facebook, ArrowUpRight, MessageCircle } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { whatsappLink } from "@/data/products";
 import { TikTokIcon } from "@/components/site/TikTokIcon";
 import { SOCIAL_LINKS } from "@/lib/constants";
@@ -18,6 +19,10 @@ const openExternalLink = (href: string) => (event: MouseEvent<HTMLAnchorElement>
 
 function ContactPage() {
   const { t } = useT();
+  useSeo({
+    title: "تواصل معنا",
+    description: "تواصل مع سمايل ميكر (Smile Maker) — اطلب أو استفسر عن منتجات العناية بالأسنان والفم. واتساب وتوصيل لكل محافظات مصر.",
+  });
   const waLink = whatsappLink("Hello, I have a question about Smile Maker products.");
 
   const cards = [
@@ -70,7 +75,7 @@ function ContactPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-ink font-medium text-base sm:text-lg break-words" dir={dir}>{value}</p>
+                  <p className="mt-1 text-ink font-medium text-base sm:text-lg wrap-break-word" dir={dir}>{value}</p>
                 </div>
                 <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-deep-blue transition-colors shrink-0" />
               </a>
@@ -117,10 +122,10 @@ function ContactPage() {
             <iframe
               title="Smile Maker location"
               src="https://www.openstreetmap.org/export/embed.html?bbox=31.3490%2C29.8455%2C31.3615%2C29.8490&layer=mapnik&marker=29.8472176%2C31.3552761"
-              className="w-full h-full min-h-[320px] sm:min-h-[420px] border-0 pointer-events-none"
+              className="w-full h-full min-h-80 sm:min-h-105 border-0 pointer-events-none"
               loading="lazy"
             />
-            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 bg-gradient-to-t from-white via-white/95 to-transparent">
+            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 bg-linear-to-t from-white via-white/95 to-transparent">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="text-xs uppercase tracking-widest text-muted-foreground">{t("contact.visit")}</p>
