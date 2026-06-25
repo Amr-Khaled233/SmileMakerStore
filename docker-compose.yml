@@ -1,34 +1,69 @@
-# Single-VPS stack: the app + its own MongoDB, fully self-contained.
-# Usage:
-#   1) cp .env.example .env   (fill in JWT_SECRET, MANAGER_PASSWORD, Cloudinary, domain)
+# Frontend + backend as separate containers, behind the VPS's existing Traefik
+# instance (the same `traefik_public` network used by other sites on this
+# server, e.g. medaya-frontend). Usage:
+#   1) cp .env.example .env   (fill in JWT_SECRET, MANAGER_PASSWORD, FRONTEND_URL)
 #   2) docker compose up -d --build
-# nginx on the host proxies https://yourdomain.com  ->  127.0.0.1:3001
 
 services:
   mongo:
     image: mongo:7
-    restart: always
+    container_name: smilemaker-mongo
+    restart: unless-stopped
     volumes:
       - mongo-data:/data/db
-    # Not published to the host — only reachable by the app container.
-    expose:
-      - "27017"
+    networks:
+      - smilemaker-network
 
-  app:
-    build: .
-    restart: always
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: smilemaker-backend
+    restart: unless-stopped
     depends_on:
       - mongo
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
+      - NODE_ENV=production
+      - PORT=3001
       # Talk to the mongo service over the internal Docker network.
-      MONGODB_URI: mongodb://mongo:27017/smilemaker
-      NODE_ENV: production
-      PORT: "3001"
-    # Bind to localhost only; nginx terminates TLS and forwards here.
-    ports:
-      - "127.0.0.1:3001:3001"
+      - MONGODB_URI=mongodb://mongo:27017/smilemaker
+    networks:
+      - smilemaker-network
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.smilemaker-backend.rule=Host(`backend-smile.alisoliman.net`)"
+      - "traefik.http.routers.smilemaker-backend.entrypoints=websecure"
+      - "traefik.http.routers.smilemaker-backend.service=smilemaker-backend"
+      - "traefik.http.routers.smilemaker-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.smilemaker-backend.loadbalancer.server.port=3001"
+      - "traefik.http.services.smilemaker-backend.loadbalancer.server.scheme=http"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_BASE=${VITE_API_BASE:-https://backend-smile.alisoliman.net/api}
+    container_name: smilemaker-frontend
+    restart: unless-stopped
+    networks:
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.smilemaker-frontend.rule=Host(`smile.alisoliman.net`)"
+      - "traefik.http.routers.smilemaker-frontend.entrypoints=websecure"
+      - "traefik.http.routers.smilemaker-frontend.service=smilemaker-frontend"
+      - "traefik.http.routers.smilemaker-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.smilemaker-frontend.loadbalancer.server.port=80"
+      - "traefik.http.services.smilemaker-frontend.loadbalancer.server.scheme=http"
+
+networks:
+  smilemaker-network:
+    driver: bridge
+  traefik_public:
+    external: true
 
 volumes:
   mongo-data:

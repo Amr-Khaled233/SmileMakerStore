@@ -5,6 +5,7 @@ dist
 *.log
 .vscode
 .idea
-deploy
+deploy/*
+!deploy/frontend.nginx.conf
 DEPLOY.md
 **/*.md

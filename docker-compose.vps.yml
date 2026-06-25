@@ -1,0 +1,72 @@
+# Self-contained stack for YOUR OWN fresh VPS (no pre-existing proxy).
+# Caddy handles automatic HTTPS for ONE domain: site at /, API at /api
+# (same origin → no CORS, one DNS record). Caddy is configured by a file
+# (deploy/Caddyfile), so it does NOT need the Docker API.
+#
+# Usage:
+#   1) cp .env.example .env
+#      set DOMAIN, ACME_EMAIL, JWT_SECRET, MANAGER_PASSWORD, FRONTEND_URL
+#   2) docker compose -f docker-compose.vps.yml up -d --build
+#
+# DNS: one A record  DOMAIN -> your VPS IP.
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ACME_EMAIL=${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - web
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file: [.env]
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/smilemaker
+    networks:
+      - web
+      - internal
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # Same-origin API path — no second subdomain needed.
+        - VITE_API_BASE=/api
+    restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+  internal:
+
+volumes:
+  mongo-data:
+  caddy-data:
+  caddy-config:

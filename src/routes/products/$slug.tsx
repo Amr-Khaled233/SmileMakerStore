@@ -4,8 +4,10 @@ import { ProductDetail } from "@/components/site/ProductDetail";
 import { PRODUCTS, PRODUCT_DETAILS, formatEGP, type ProductSlug, type ProductDetails } from "@/data/products";
 import { api, type DynamicProduct, type Pricing } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { useState, useEffect } from "react";
-import { Star, ShoppingCart, Check, ArrowRight } from "lucide-react";
+import { Star, Check, ArrowRight } from "lucide-react";
+import { PurchasePanel } from "@/components/site/PurchasePanel";
 
 export const Route = createFileRoute("/products/$slug")({
   component: ProductPage,
@@ -26,6 +28,11 @@ function ProductPage() {
 }
 
 function StaticProductPage({ staticProduct, staticDetails }: { staticProduct: (typeof PRODUCTS)[number]; staticDetails: ProductDetails }) {
+  useSeo({
+    title: `${staticProduct.title} — ${staticProduct.tagline.ar}`,
+    description: staticProduct.description.ar || staticProduct.description.en,
+    image: staticProduct.image,
+  });
   const [ready, setReady] = useState(false);
   const [price, setPrice] = useState(staticProduct.price);
   const [salePrice, setSalePrice] = useState<number | undefined>(staticProduct.salePrice);
@@ -85,7 +92,6 @@ function StaticProductPage({ staticProduct, staticDetails }: { staticProduct: (t
 function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" }) {
   const [product, setProduct] = useState<DynamicProduct | null | "loading">("loading");
   const [activeImg, setActiveImg] = useState<string>("");
-  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     api.getDynamicProducts().then((list) => {
@@ -95,6 +101,13 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
       if (found.images[0]) setActiveImg(found.images[0]);
     }).catch(() => setProduct(null));
   }, [slug]);
+
+  const p = product && typeof product === "object" ? product : null;
+  useSeo({
+    title: p ? (lang === "ar" && p.titleAr ? p.titleAr : p.title) : undefined,
+    description: p ? (lang === "ar" ? p.descriptionAr || p.description : p.description) : undefined,
+    image: p?.images?.[0],
+  });
 
   if (product === "loading") {
     return (
@@ -126,7 +139,7 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
         <div className="absolute inset-0" style={{ background: "var(--gradient-arc)" }} />
         <div className="container-lux relative grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative">
-            <div className="aspect-square rounded-3xl bg-white shadow-[var(--shadow-glow)] flex items-center justify-center overflow-hidden">
+            <div className="aspect-square rounded-3xl bg-white shadow-(--shadow-glow) flex items-center justify-center overflow-hidden">
               {activeImg ? (
                 <img key={activeImg} src={activeImg} alt={product.title} loading="eager" className="w-full h-full object-cover" />
               ) : (
@@ -172,14 +185,7 @@ function DynamicProductPage({ slug, lang }: { slug: string; lang: "en" | "ar" })
               </ul>
             )}
 
-            {product.outOfStock ? (
-              <div className="btn-ghost opacity-50 cursor-not-allowed w-full justify-center">نفد من المخزون</div>
-            ) : (
-              <Link to="/order" onClick={() => { setAdded(true); setTimeout(() => setAdded(false), 2000); }}
-                className="btn-primary w-full justify-center text-base">
-                {added ? <><Check className="h-5 w-5" /> تم الإضافة</> : <><ShoppingCart className="h-5 w-5" /> اطلب الآن</>}
-              </Link>
-            )}
+            <PurchasePanel slug={product.slug} />
           </div>
         </div>
       </section>

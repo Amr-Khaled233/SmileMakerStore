@@ -10,18 +10,20 @@ router.get("/public", async (_req, res) => {
   const outOfStock: string[] = [];
   const outOfStockColors: Record<string, string[]> = {};
   const colorQty: Record<string, Record<string, number>> = {};
+  const qty: Record<string, number> = {};
 
   for (const entry of db.inventory) {
+    qty[entry.slug] = entry.qty; // total available units per product
     if (entry.qty === 0) outOfStock.push(entry.slug);
     if (entry.colorQty) {
       const oosColors = Object.entries(entry.colorQty)
-        .filter(([, qty]) => qty === 0)
+        .filter(([, q]) => q === 0)
         .map(([colorId]) => colorId);
       if (oosColors.length > 0) outOfStockColors[entry.slug] = oosColors;
       colorQty[entry.slug] = { ...entry.colorQty };
     }
   }
-  res.json({ outOfStock, outOfStockColors, colorQty });
+  res.json({ outOfStock, outOfStockColors, colorQty, qty });
 });
 
 // Protected — full inventory

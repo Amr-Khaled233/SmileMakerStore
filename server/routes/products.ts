@@ -21,6 +21,7 @@ router.get("/meta", async (_req, res) => {
   res.json({
     imageOverrides: db.productImageOverrides ?? {},
     hidden: db.productHidden ?? [],
+    bundleHidden: db.bundleHidden ?? [],
     staticOverrides: db.staticOverrides ?? {},
     bundleOverrides: db.bundleOverrides ?? {},
   });
@@ -28,7 +29,7 @@ router.get("/meta", async (_req, res) => {
 
 // Update bundle override (protected)
 router.patch("/bundles/:id", requireAuth, async (req, res) => {
-  const { titleEn, titleAr, taglineEn, taglineAr, items, discountPct } = req.body as Partial<BundleOverride>;
+  const { titleEn, titleAr, taglineEn, taglineAr, items, quantities, discountPct } = req.body as Partial<BundleOverride>;
   const db = await readDb();
   if (!db.bundleOverrides[req.params.id]) db.bundleOverrides[req.params.id] = {};
   const ov = db.bundleOverrides[req.params.id];
@@ -37,6 +38,17 @@ router.patch("/bundles/:id", requireAuth, async (req, res) => {
   if (taglineEn !== undefined) ov.taglineEn = taglineEn || undefined;
   if (taglineAr !== undefined) ov.taglineAr = taglineAr || undefined;
   if (Array.isArray(items)) ov.items = items;
+  // Keep only qty (>1) for slugs still in the bundle; 1 is the implicit default.
+  if (quantities !== undefined || Array.isArray(items)) {
+    const itemList = ov.items ?? [];
+    const src = quantities ?? ov.quantities ?? {};
+    const clean: Record<string, number> = {};
+    for (const slug of itemList) {
+      const n = Math.floor(Number(src[slug]));
+      if (Number.isFinite(n) && n > 1) clean[slug] = n;
+    }
+    ov.quantities = Object.keys(clean).length > 0 ? clean : undefined;
+  }
   if (typeof discountPct === "number" && discountPct >= 0 && discountPct <= 100) ov.discountPct = discountPct;
   await writeDb(db);
   res.json({ success: true });
@@ -322,6 +334,20 @@ router.patch("/static/:slug/visibility", requireAuth, async (req, res) => {
     if (!db.productHidden.includes(req.params.slug)) db.productHidden.push(req.params.slug);
   } else {
     db.productHidden = db.productHidden.filter((s) => s !== req.params.slug);
+  }
+  await writeDb(db);
+  res.json({ success: true });
+});
+
+// Hide / show a static (hardcoded) bundle
+router.patch("/bundles/:id/visibility", requireAuth, async (req, res) => {
+  const { hidden } = req.body as { hidden?: boolean };
+  const db = await readDb();
+  db.bundleHidden = db.bundleHidden ?? [];
+  if (hidden) {
+    if (!db.bundleHidden.includes(req.params.id)) db.bundleHidden.push(req.params.id);
+  } else {
+    db.bundleHidden = db.bundleHidden.filter((id) => id !== req.params.id);
   }
   await writeDb(db);
   res.json({ success: true });

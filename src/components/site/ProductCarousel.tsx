@@ -132,7 +132,7 @@ export function ProductCarousel() {
           onTransitionEnd={onTransitionEnd}
         >
           {extended.map((src, i) => (
-            <div key={i} className="aspect-square sm:aspect-[4/3]" style={{ width: `${100 / total}%` }}>
+            <div key={i} className="aspect-square sm:aspect-4/3" style={{ width: `${100 / total}%` }}>
               <img
                 src={src}
                 alt=""

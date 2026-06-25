@@ -56,7 +56,7 @@ export function DeliveredSection({ orders, onDelete }: { orders: Order[]; onDele
         </div>
         {deliveredOrders.length > 0 && (
           <div className="relative mb-4">
-            <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Search className="absolute inset-e-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <input
               type="search"
               placeholder="ابحث برقم التليفون أو الاسم أو المدينة أو ID..."

@@ -207,7 +207,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         {tab === "orders" && (
           <div className="space-y-5">
             <div className="relative">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Search className="absolute inset-s-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
@@ -218,7 +218,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-ink"
+                  className="absolute inset-e-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-ink"
                 >
                   ✕
                 </button>

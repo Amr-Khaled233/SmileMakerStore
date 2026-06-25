@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { ArrowRight, Star, Sparkles } from "lucide-react";
+import { ArrowRight, Star, Sparkles, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
+import { useCart } from "@/lib/cart";
 import { useState, useEffect } from "react";
-import { api, type Pricing, type DynamicProduct, type DynamicBundle } from "@/lib/api";
+import { api, type Pricing, type DynamicProduct, type DynamicBundle, type PublicInventoryStatus } from "@/lib/api";
 
 export const Route = createFileRoute("/products/")({
   component: ProductsPage,
@@ -12,27 +14,48 @@ export const Route = createFileRoute("/products/")({
 
 function ProductsPage() {
   const { t, tl, lang } = useT();
+  useSeo({
+    title: lang === "ar" ? "كل المنتجات" : "All Products",
+    description: "تسوّق كل منتجات سمايل ميكر للعناية بالأسنان والفم — واتر فلوسر، فرشاة أسنان كهربائية، أطقم تقويم وأكسسوارات، بأسعار مناسبة وتوصيل لكل محافظات مصر.",
+  });
+  const cart = useCart();
+  // Brief "added" confirmation per bundle — we add to the cart in place and let
+  // the customer keep browsing; colours are chosen later on the cart page.
+  const [addedBundle, setAddedBundle] = useState<string | null>(null);
+  const addBundleToCart = (id: string) => {
+    cart.addBundle(id);
+    setAddedBundle(id);
+    setTimeout(() => setAddedBundle((cur) => (cur === id ? null : cur)), 1800);
+  };
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
+  const [hiddenBundleIds, setHiddenBundleIds] = useState<string[]>([]);
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [userBundles, setUserBundles] = useState<DynamicBundle[]>([]);
+  const [inventory, setInventory] = useState<PublicInventoryStatus>({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} });
   const [dataReady, setDataReady] = useState(false);
   useEffect(() => {
     Promise.all([
       api.getPricingPublic().catch((): Pricing => ({ products: [], bundles: [], promoCodes: [] })),
       api.getDynamicProducts().catch((): DynamicProduct[] => []),
-      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
+      api.getProductsMeta().catch(() => ({ imageOverrides: {} as Record<string, string[]>, hidden: [] as string[], bundleHidden: [] as string[], staticOverrides: {}, bundleOverrides: {} })),
       api.getDynamicBundles().catch((): DynamicBundle[] => []),
-    ]).then(([pricingData, dynProds, meta, dynBundles]) => {
+      api.getInventoryStatus().catch((): PublicInventoryStatus => ({ outOfStock: [], outOfStockColors: {}, colorQty: {}, qty: {} })),
+    ]).then(([pricingData, dynProds, meta, dynBundles, inv]) => {
       setPricing(pricingData);
       setDynamicProducts(dynProds);
       setHiddenSlugs(meta.hidden);
+      setHiddenBundleIds(meta.bundleHidden ?? []);
       setImageOverrides(meta.imageOverrides ?? {});
       setUserBundles(dynBundles);
+      setInventory(inv);
       setDataReady(true);
     });
   }, []);
+
+  // A bundle can't be ordered if any of its products is fully out of stock.
+  const bundleOos = (itemSlugs: string[]) => itemSlugs.some((s) => inventory.outOfStock.includes(s));
 
   const products = PRODUCTS.filter((p) => !hiddenSlugs.includes(p.slug)).map((p) => {
     const ov = pricing.products.find((x) => x.slug === p.slug);
@@ -44,7 +67,7 @@ function ProductsPage() {
       image: imgs?.[0] ?? p.image,
     };
   });
-  const bundles = BUNDLES.map((b) => {
+  const bundles = BUNDLES.filter((b) => !hiddenBundleIds.includes(b.id)).map((b) => {
     const ov = pricing.bundles.find((x) => x.id === b.id);
     return { ...b, fixedPrice: ov?.price };
   });
@@ -79,9 +102,9 @@ function ProductsPage() {
                 to={`/products/${p.slug}` as "/products/h2o-water-flosser"}
                 className="lux-card overflow-hidden group block"
               >
-                <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+                <div className="aspect-4/3 bg-white flex items-center justify-center overflow-hidden relative">
                   <img src={p.image} alt={p.title} loading="lazy" width={1024} height={768} className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
-                  {p.badge && <div className="absolute top-4 start-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{tl(p.badge)}</div>}
+                  {p.badge && <div className="absolute top-4 inset-s-4 glass-card rounded-full px-3 py-1 text-xs font-medium">{tl(p.badge)}</div>}
                 </div>
                 <div className="p-7">
                   <div className="flex items-center justify-between gap-3">
@@ -112,7 +135,7 @@ function ProductsPage() {
               params={{ slug: p.slug }}
               className="lux-card overflow-hidden group block"
             >
-              <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+              <div className="aspect-4/3 bg-white flex items-center justify-center overflow-hidden relative">
                 {p.images[0] ? (
                   <img src={p.images[0]} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 ) : (
@@ -161,9 +184,13 @@ function ProductsPage() {
               const total = items.reduce((s, i) => s + effectivePrice(i as Parameters<typeof effectivePrice>[0]), 0);
               const discounted = b.fixedPrice ?? Math.round(total * (1 - b.discountPct / 100));
               const savingsPct = total > 0 ? Math.round(((total - discounted) / total) * 100) : 0;
+              const oos = bundleOos(b.items);
               return (
-                <div key={b.id} className="lux-card p-7 flex flex-col">
-                  <h3 className="text-2xl font-display">{tl(b.title)}</h3>
+                <div key={b.id} className={`lux-card p-7 flex flex-col ${oos ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-2xl font-display">{tl(b.title)}</h3>
+                    {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                  </div>
                   <p className="mt-2 text-sm text-muted-foreground">{tl(b.tagline)}</p>
 
                   <div className="mt-5 flex items-center gap-3">
@@ -186,9 +213,15 @@ function ProductsPage() {
                     <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
-                  <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
-                    {t("btn.orderBundle")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-                  </Link>
+                  {oos ? (
+                    <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
+                  ) : (
+                    <button onClick={() => addBundleToCart(b.id)} className="btn-primary mt-6 text-sm w-fit">
+                      {addedBundle === b.id
+                        ? <><Check className="h-4 w-4" /> {t("btn.added")}</>
+                        : <>{t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" /></>}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -196,27 +229,34 @@ function ProductsPage() {
             {userBundles.map((b) => {
               const allProds = [...products, ...dynamicProducts.map((p) => ({ slug: p.slug, title: p.title, price: p.salePrice ?? p.price, salePrice: undefined as number | undefined, image: imageOverrides[p.slug]?.[0] ?? p.images[0] ?? "" }))];
               const items = b.items.map((s) => allProds.find((p) => p.slug === s)).filter(Boolean) as { slug: string; title: string; price: number; salePrice?: number; image: string }[];
-              const total = items.reduce((s, i) => s + (i.salePrice ?? i.price), 0);
+              const qtyOf = (slug: string) => { const q = b.quantities?.[slug]; return q && q > 0 ? q : 1; };
+              const total = items.reduce((s, i) => s + (i.salePrice ?? i.price) * qtyOf(i.slug), 0);
               const priceOv = pricing.bundles.find((x) => x.id === b.id);
               const discounted = priceOv?.price ?? b.price;
               const savingsPct = total > 0 && total > discounted ? Math.round(((total - discounted) / total) * 100) : 0;
+              const oos = bundleOos(b.items);
               return (
-                <div key={b.id} className="lux-card p-7 flex flex-col">
-                  <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
+                <div key={b.id} className={`lux-card p-7 flex flex-col ${oos ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-2xl font-display">{lang === "ar" ? b.titleAr : b.titleEn}</h3>
+                    {oos && <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">{lang === "ar" ? "نفد المخزون" : "Out of stock"}</span>}
+                  </div>
                   {(b.taglineEn || b.taglineAr) && (
                     <p className="mt-2 text-sm text-muted-foreground">{lang === "ar" ? b.taglineAr : b.taglineEn}</p>
                   )}
 
                   <div className="mt-5 flex items-center gap-3 flex-wrap">
-                    {items.map((i) => (
-                      <div key={i.slug} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
-                        {i.image ? (
-                          <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
-                        )}
-                      </div>
-                    ))}
+                    {items.flatMap((i) =>
+                      Array.from({ length: qtyOf(i.slug) }).map((_, k) => (
+                        <div key={`${i.slug}-${k}`} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
+                          {i.image ? (
+                            <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
+                          )}
+                        </div>
+                      )),
+                    )}
                   </div>
 
                   <div className="mt-5 space-y-1">
@@ -231,9 +271,15 @@ function ProductsPage() {
                     <p className="text-2xl price-tag text-gradient">{formatEGP(discounted, lang)}</p>
                   </div>
 
-                  <Link to="/order" className="btn-primary mt-6 text-sm w-fit">
-                    {t("btn.orderBundle")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-                  </Link>
+                  {oos ? (
+                    <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
+                  ) : (
+                    <button onClick={() => addBundleToCart(b.id)} className="btn-primary mt-6 text-sm w-fit">
+                      {addedBundle === b.id
+                        ? <><Check className="h-4 w-4" /> {t("btn.added")}</>
+                        : <>{t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" /></>}
+                    </button>
+                  )}
                 </div>
               );
             })}

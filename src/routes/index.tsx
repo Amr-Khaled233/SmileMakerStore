@@ -4,6 +4,7 @@ import { ArrowRight, Star, Sparkles, ShieldCheck, Award, Users, Truck, Zap } fro
 import logo from "@/assets/smile-maker-logo.png";
 import hero from "@/assets/hero-smile.jpg";
 import { useT, type L } from "@/lib/i18n";
+import { useSeo } from "@/lib/seo";
 import { formatEGP, PRODUCTS, effectivePrice } from "@/data/products";
 import { useEffect, useState } from "react";
 import { api, type Pricing } from "@/lib/api";
@@ -18,6 +19,7 @@ const FEATURED_SLUGS = ["h2o-water-flosser", "ortho-oral-kit"];
 
 function HomePage() {
   const { t, tl, lang } = useT();
+  useSeo({}); // brand title + default description for the home page
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [imageOverrides, setImageOverrides] = useState<Record<string, string[]>>({});
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
@@ -97,14 +99,14 @@ function HomePage() {
           </div>
 
           <div className="relative">
-            <div className="relative aspect-[4/5] max-w-md mx-auto">
-              <div className="absolute inset-0 rounded-[3rem] overflow-hidden shadow-[var(--shadow-glow)]">
+            <div className="relative aspect-4/5 max-w-md mx-auto">
+              <div className="absolute inset-0 rounded-[3rem] overflow-hidden shadow-(--shadow-glow)">
                 <img src={hero} alt="Brilliant white smile" width={1600} height={2000} className="w-full h-full object-cover" />
               </div>
               <img src={logo} alt="" aria-hidden
-                className="absolute -bottom-10 -start-10 h-32 w-32 object-contain animate-float drop-shadow-2xl"
+                className="absolute -bottom-10 -inset-s-10 h-32 w-32 object-contain animate-float drop-shadow-2xl"
               />
-              <div className="absolute -top-6 -end-6 glass-card rounded-2xl p-4 max-w-[200px] animate-float" style={{ animationDelay: "1s" }}>
+              <div className="absolute -top-6 -inset-e-6 glass-card rounded-2xl p-4 max-w-50 animate-float" style={{ animationDelay: "1s" }}>
                 <p className="text-xs uppercase tracking-widest text-deep-blue">{t("home.whiterIn")}</p>
                 <p className="text-3xl font-display text-gradient">{t("home.days")}</p>
                 <p className="text-xs text-muted-foreground mt-1">{t("home.clinical")}</p>
@@ -178,7 +180,7 @@ function HomePage() {
             <div className="mt-12 grid md:grid-cols-2 gap-8">
               {[0, 1].map((i) => (
                 <div key={i} className="lux-card overflow-hidden animate-pulse">
-                  <div className="aspect-[4/3] bg-soft" />
+                  <div className="aspect-4/3 bg-soft" />
                   <div className="p-7 space-y-3">
                     <div className="h-6 bg-soft rounded-xl w-3/4" />
                     <div className="h-4 bg-soft rounded-lg w-1/2" />
@@ -196,11 +198,11 @@ function HomePage() {
                   <Link key={p.slug} to="/products/$slug" params={{ slug: p.slug }}
                     className="lux-card overflow-hidden group block"
                   >
-                    <div className="aspect-[4/3] bg-white flex items-center justify-center overflow-hidden relative">
+                    <div className="aspect-4/3 bg-white flex items-center justify-center overflow-hidden relative">
                       <img src={p.image} alt={p.title} loading="lazy" width={1024} height={768}
                         className="w-3/5 h-3/5 object-contain transition-transform duration-700 group-hover:scale-110" />
                       {p.badge && (
-                        <div className="absolute top-4 start-4 glass-card rounded-full px-3 py-1 text-xs font-medium">
+                        <div className="absolute top-4 inset-s-4 glass-card rounded-full px-3 py-1 text-xs font-medium">
                           {tl(p.badge)}
                         </div>
                       )}
@@ -261,7 +263,7 @@ function HomePage() {
       {/* ── CTA ── */}
       <section className="section-pad">
         <div className="container-lux">
-          <div className="rounded-3xl p-12 md:p-20 bg-brand text-white shadow-[var(--shadow-glow)] grid md:grid-cols-2 gap-10 items-center">
+          <div className="rounded-3xl p-12 md:p-20 bg-brand text-white shadow-(--shadow-glow) grid md:grid-cols-2 gap-10 items-center">
             <div>
               <p className="eyebrow text-white/80">{t("home.cta.eyebrow")}</p>
               <h2 className="mt-3 text-4xl md:text-5xl text-white">{t("home.cta.h")}</h2>

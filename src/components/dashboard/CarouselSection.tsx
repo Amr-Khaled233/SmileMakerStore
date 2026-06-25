@@ -75,7 +75,7 @@ export function CarouselSection({ token }: { token: string }) {
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-              <span className="absolute top-2 start-2 text-[10px] font-medium bg-black/50 text-white rounded-full px-2 py-0.5">
+              <span className="absolute top-2 inset-s-2 text-[10px] font-medium bg-black/50 text-white rounded-full px-2 py-0.5">
                 {idx + 1}
               </span>
             </div>

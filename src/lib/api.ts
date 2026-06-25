@@ -6,6 +6,7 @@ export type PublicInventoryStatus = {
   outOfStock: string[];
   outOfStockColors: Record<string, string[]>;
   colorQty: Record<string, Record<string, number>>;
+  qty: Record<string, number>; // total available units per product slug
 };
 
 export type CommissionLine = {
@@ -123,7 +124,7 @@ export const api = {
   getDynamicProducts: () =>
     req<DynamicProduct[]>("GET", "/products"),
   getProductsMeta: () =>
-    req<{ imageOverrides: Record<string, string[]>; hidden: string[]; staticOverrides: Record<string, StaticProductOverride>; bundleOverrides: Record<string, BundleOverride> }>("GET", "/products/meta"),
+    req<{ imageOverrides: Record<string, string[]>; hidden: string[]; bundleHidden: string[]; staticOverrides: Record<string, StaticProductOverride>; bundleOverrides: Record<string, BundleOverride> }>("GET", "/products/meta"),
 
   // Dynamic products (manager)
   createProduct: (token: string, data: Partial<DynamicProduct>) =>
@@ -158,6 +159,8 @@ export const api = {
     req<{ success: boolean }>("DELETE", `/products/static/${slug}/images`, undefined, token),
   setProductVisibility: (token: string, slug: string, hidden: boolean) =>
     req<{ success: boolean }>("PATCH", `/products/static/${slug}/visibility`, { hidden }, token),
+  setBundleVisibility: (token: string, id: string, hidden: boolean) =>
+    req<{ success: boolean }>("PATCH", `/products/bundles/${id}/visibility`, { hidden }, token),
   updateStaticProductDetails: (token: string, slug: string, patch: Partial<StaticProductOverride>) =>
     req<{ success: boolean }>("PATCH", `/products/static/${slug}/details`, patch, token),
   updateBundle: (token: string, id: string, patch: Partial<BundleOverride>) =>

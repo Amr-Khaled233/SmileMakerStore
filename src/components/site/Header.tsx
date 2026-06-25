@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Menu, X, ShoppingBag, Globe } from "lucide-react";
+import { Menu, X, ShoppingCart, Globe } from "lucide-react";
 import logo from "@/assets/smile-maker-logo.png";
 import { useT } from "@/lib/i18n";
+import { useCart } from "@/lib/cart";
 
 const links = [
   { to: "/", key: "nav.home" as const },
   { to: "/products", key: "nav.products" as const },
-  { to: "/order", key: "nav.order" as const },
   { to: "/about", key: "nav.about" as const },
   { to: "/contact", key: "nav.contact" as const },
 ] as const;
@@ -15,7 +15,20 @@ const links = [
 export function Header() {
   const [open, setOpen] = useState(false);
   const { t, lang, setLang } = useT();
+  const { count } = useCart();
   const toggleLang = () => setLang(lang === "en" ? "ar" : "en");
+
+  const cartButton = (
+    <Link to="/cart" className="relative inline-flex items-center justify-center h-10 w-10 rounded-full border border-border bg-white hover:border-turquoise transition-colors" aria-label={t("nav.cart")}>
+      <ShoppingCart className="h-4 w-4 text-ink" />
+      {count > 0 && (
+        <span className="absolute -top-1 -inset-e-1 min-w-4.5 h-4.5 px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
+          {count}
+        </span>
+      )}
+    </Link>
+  );
+
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/75 border-b border-border/60">
       <div className="container-lux flex items-center justify-between py-3 gap-2">
@@ -49,9 +62,7 @@ export function Header() {
             <Globe className="h-3.5 w-3.5" />
             <span>{t("nav.lang")}</span>
           </button>
-          <Link to="/order" className="btn-primary text-sm hidden md:inline-flex">
-            <ShoppingBag className="h-4 w-4" /> {t("nav.orderNow")}
-          </Link>
+          {cartButton}
           <button
             className="lg:hidden p-2 rounded-full border border-border"
             onClick={() => setOpen(!open)}
@@ -74,8 +85,8 @@ export function Header() {
                 {t(l.key)}
               </Link>
             ))}
-            <Link to="/order" onClick={() => setOpen(false)} className="btn-primary text-sm w-fit">
-              <ShoppingBag className="h-4 w-4" /> {t("nav.orderNow")}
+            <Link to="/cart" onClick={() => setOpen(false)} className="btn-primary text-sm w-fit">
+              <ShoppingCart className="h-4 w-4" /> {t("nav.cart")}{count > 0 ? ` (${count})` : ""}
             </Link>
           </div>
         </div>

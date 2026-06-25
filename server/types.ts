@@ -106,6 +106,7 @@ export type DynamicBundle = {
   taglineEn?: string;
   taglineAr?: string;
   items: string[]; // product slugs (static or dynamic)
+  quantities?: Record<string, number>; // slug -> qty per bundle unit (defaults to 1)
   price: number;
 };
 
@@ -115,6 +116,7 @@ export type BundleOverride = {
   taglineEn?: string;
   taglineAr?: string;
   items?: string[]; // slugs — static or dynamic
+  quantities?: Record<string, number>; // slug -> qty per bundle unit (defaults to 1)
   discountPct?: number;
 };
 
@@ -137,6 +139,7 @@ export type DbData = {
   dynamicBundles: DynamicBundle[];
   productImageOverrides: Record<string, string[]>; // slug -> base64 images
   productHidden: string[]; // slugs of hidden static products
+  bundleHidden: string[]; // ids of hidden static (hardcoded) bundles
   staticOverrides: Record<string, StaticProductOverride>; // slug -> text/feature overrides
   bundleOverrides: Record<string, BundleOverride>; // bundleId -> config overrides
   reviewImages: string[]; // customer review images for homepage slider
