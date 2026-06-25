@@ -202,8 +202,8 @@ function CheckoutPage() {
           </div>
 
           <div className="grid lg:grid-cols-5 gap-6">
-            {/* Form */}
-            <form onSubmit={submit} className="lg:col-span-3 lux-card p-5 sm:p-8 space-y-5">
+            {/* Form (below the summary on mobile, left column on desktop) */}
+            <form onSubmit={submit} className="order-2 lg:order-1 lg:col-span-3 lux-card p-5 sm:p-8 space-y-5">
               <h2 className="font-display text-2xl">{t("order.delivery")}</h2>
 
               <Field label={t("order.fullName")} error={errors.name}>
@@ -249,8 +249,8 @@ function CheckoutPage() {
               </button>
             </form>
 
-            {/* Summary */}
-            <aside className="lg:col-span-2">
+            {/* Summary (shown first on mobile so it sits above Place order) */}
+            <aside className="order-1 lg:order-2 lg:col-span-2">
               <div className="lux-card p-5 sm:p-6 lg:sticky lg:top-24 space-y-5">
                 <h2 className="font-display text-2xl">{t("order.summary")}</h2>
 

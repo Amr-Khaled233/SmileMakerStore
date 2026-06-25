@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Layout } from "@/components/site/Layout";
-import { ArrowRight, Star, Sparkles } from "lucide-react";
+import { ArrowRight, Star, Sparkles, Check } from "lucide-react";
 import { PRODUCTS, BUNDLES, formatEGP, effectivePrice } from "@/data/products";
 import { useT } from "@/lib/i18n";
 import { useSeo } from "@/lib/seo";
@@ -18,8 +18,15 @@ function ProductsPage() {
     title: lang === "ar" ? "كل المنتجات" : "All Products",
     description: "تسوّق كل منتجات سمايل ميكر للعناية بالأسنان والفم — واتر فلوسر، فرشاة أسنان كهربائية، أطقم تقويم وأكسسوارات، بأسعار مناسبة وتوصيل لكل محافظات مصر.",
   });
-  const nav = useNavigate();
   const cart = useCart();
+  // Brief "added" confirmation per bundle — we add to the cart in place and let
+  // the customer keep browsing; colours are chosen later on the cart page.
+  const [addedBundle, setAddedBundle] = useState<string | null>(null);
+  const addBundleToCart = (id: string) => {
+    cart.addBundle(id);
+    setAddedBundle(id);
+    setTimeout(() => setAddedBundle((cur) => (cur === id ? null : cur)), 1800);
+  };
   const [pricing, setPricing] = useState<Pricing>({ products: [], bundles: [], promoCodes: [] });
   const [dynamicProducts, setDynamicProducts] = useState<DynamicProduct[]>([]);
   const [hiddenSlugs, setHiddenSlugs] = useState<string[]>([]);
@@ -209,8 +216,10 @@ function ProductsPage() {
                   {oos ? (
                     <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
                   ) : (
-                    <button onClick={() => { cart.addBundle(b.id); nav({ to: "/cart" }); }} className="btn-primary mt-6 text-sm w-fit">
-                      {t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                    <button onClick={() => addBundleToCart(b.id)} className="btn-primary mt-6 text-sm w-fit">
+                      {addedBundle === b.id
+                        ? <><Check className="h-4 w-4" /> {t("btn.added")}</>
+                        : <>{t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" /></>}
                     </button>
                   )}
                 </div>
@@ -237,16 +246,17 @@ function ProductsPage() {
                   )}
 
                   <div className="mt-5 flex items-center gap-3 flex-wrap">
-                    {items.map((i) => (
-                      <div key={i.slug} className="relative h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
-                        {i.image ? (
-                          <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
-                        )}
-                        {qtyOf(i.slug) > 1 && <span className="absolute -top-1.5 -inset-e-1.5 min-w-5 h-5 px-1 rounded-full bg-deep-blue text-white text-[10px] font-semibold flex items-center justify-center">×{qtyOf(i.slug)}</span>}
-                      </div>
-                    ))}
+                    {items.flatMap((i) =>
+                      Array.from({ length: qtyOf(i.slug) }).map((_, k) => (
+                        <div key={`${i.slug}-${k}`} className="h-16 w-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden">
+                          {i.image ? (
+                            <img src={i.image} alt={i.title} loading="lazy" className="w-3/4 h-3/4 object-contain" />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground text-center px-1">{i.title}</span>
+                          )}
+                        </div>
+                      )),
+                    )}
                   </div>
 
                   <div className="mt-5 space-y-1">
@@ -264,8 +274,10 @@ function ProductsPage() {
                   {oos ? (
                     <span className="mt-6 text-sm text-muted-foreground">{lang === "ar" ? "غير متاح حالياً" : "Currently unavailable"}</span>
                   ) : (
-                    <button onClick={() => { cart.addBundle(b.id); nav({ to: "/cart" }); }} className="btn-primary mt-6 text-sm w-fit">
-                      {t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                    <button onClick={() => addBundleToCart(b.id)} className="btn-primary mt-6 text-sm w-fit">
+                      {addedBundle === b.id
+                        ? <><Check className="h-4 w-4" /> {t("btn.added")}</>
+                        : <>{t("btn.addToCart")} <ArrowRight className="h-4 w-4 rtl:rotate-180" /></>}
                     </button>
                   )}
                 </div>
