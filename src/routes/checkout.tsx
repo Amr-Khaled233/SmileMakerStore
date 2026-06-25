@@ -202,8 +202,8 @@ function CheckoutPage() {
           </div>
 
           <div className="grid lg:grid-cols-5 gap-6">
-            {/* Form (below the summary on mobile, left column on desktop) */}
-            <form onSubmit={submit} className="order-2 lg:order-1 lg:col-span-3 lux-card p-5 sm:p-8 space-y-5">
+            {/* Form */}
+            <form id="checkout-form" onSubmit={submit} className="lg:col-span-3 lux-card p-5 sm:p-8 space-y-5">
               <h2 className="font-display text-2xl">{t("order.delivery")}</h2>
 
               <Field label={t("order.fullName")} error={errors.name}>
@@ -236,21 +236,11 @@ function CheckoutPage() {
               <Field label={t("order.notes")}>
                 <textarea name="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} maxLength={500} className="lux-input resize-none" />
               </Field>
-
-              {stockErrors.length > 0 && (
-                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-destructive">
-                  <p className="font-medium mb-1">{t("checkout.fixErrors")}</p>
-                  <ul className="list-disc ms-5 space-y-0.5">{stockErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
-                </div>
-              )}
-
-              <button className="btn-primary w-full justify-center text-base disabled:opacity-60" type="submit" disabled={submitting}>
-                {submitting ? (lang === "ar" ? "جاري الإرسال..." : "Sending...") : `${t("order.placeOrder")} — ${formatEGP(totals.total, lang)}`}
-              </button>
             </form>
 
-            {/* Summary (shown first on mobile so it sits above Place order) */}
-            <aside className="order-1 lg:order-2 lg:col-span-2">
+            {/* Summary — carries the Place order button so on mobile it sits
+                right under the form, and on desktop it lives beside it. */}
+            <aside className="lg:col-span-2">
               <div className="lux-card p-5 sm:p-6 lg:sticky lg:top-24 space-y-5">
                 <h2 className="font-display text-2xl">{t("order.summary")}</h2>
 
@@ -293,6 +283,17 @@ function CheckoutPage() {
                     <span className="price-tag text-2xl text-gradient">{formatEGP(totals.total, lang)}</span>
                   </div>
                 </div>
+
+                {stockErrors.length > 0 && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-destructive">
+                    <p className="font-medium mb-1">{t("checkout.fixErrors")}</p>
+                    <ul className="list-disc ms-5 space-y-0.5">{stockErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                  </div>
+                )}
+
+                <button form="checkout-form" className="btn-primary w-full justify-center text-base disabled:opacity-60" type="submit" disabled={submitting}>
+                  {submitting ? (lang === "ar" ? "جاري الإرسال..." : "Sending...") : `${t("order.placeOrder")} — ${formatEGP(totals.total, lang)}`}
+                </button>
               </div>
             </aside>
           </div>
